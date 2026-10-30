@@ -1,0 +1,700 @@
+:root {
+  --bg: #10141c;
+  --panel: #171d29;
+  --panel-2: #1e2635;
+  --line: #2b3648;
+  --text: #e6ebf5;
+  --muted: #8b97ad;
+  --accent: #4c8dff;
+  --ok: #35d07f;
+  --warn: #f0a93b;
+  --danger: #e11d2e;
+  --radius: 10px;
+  --mono: 'Cascadia Mono', 'Consolas', ui-monospace, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font:
+    14px/1.5 'Segoe UI',
+    'Microsoft JhengHei',
+    system-ui,
+    sans-serif;
+  overflow: hidden;
+}
+
+/* ───────────── 頂部工具列 ───────────── */
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 10px 16px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+  flex-wrap: wrap;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.brand-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 12px var(--accent);
+}
+
+.brand-role {
+  color: var(--muted);
+  font-size: 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 1px 8px;
+}
+
+.conn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.conn label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.statusline {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #4a5468;
+}
+
+.dot.on {
+  background: var(--ok);
+  box-shadow: 0 0 10px var(--ok);
+}
+
+.dot.warn {
+  background: var(--warn);
+}
+
+.dot.err {
+  background: var(--danger);
+}
+
+/* ───────────── 版面 ───────────── */
+
+.layout {
+  display: grid;
+  /* 三欄 1:5:3 — 左：預覽與畫質／中：學生機（占寬）／右：工作設定＋記錄 */
+  grid-template-columns: minmax(260px, 1fr) minmax(0, 5fr) minmax(320px, 3fr);
+  grid-template-rows: minmax(0, 1fr);
+  gap: 12px;
+  padding: 12px;
+  height: calc(100% - 61px);
+  overflow: hidden;
+}
+
+.broadcast-panel {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.students-panel {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.work-panel {
+  grid-column: 3;
+  grid-row: 1;
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 12px;
+  overflow: auto;
+}
+
+.panel h2 {
+  margin: 0 0 10px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.panel-head h2 {
+  margin: 0;
+}
+
+.count {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+/* ───────────── 表單元素 ───────────── */
+
+input[type='text'],
+input[type='number'],
+select {
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  color: var(--text);
+  padding: 5px 9px;
+  font: inherit;
+  outline: none;
+  min-width: 0;
+}
+
+/* 數值輸入用上下鍵微調時很容易誤觸，而且字寬不一會讓整列跳動 */
+input[type='number'] {
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+input[type='number']::-webkit-inner-spin-button,
+input[type='number']::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type='text']:focus,
+input[type='number']:focus,
+select:focus {
+  border-color: var(--accent);
+}
+
+input:disabled,
+select:disabled {
+  opacity: 0.5;
+}
+
+#server-url {
+  width: 190px;
+}
+
+#class-id {
+  width: 92px;
+  font-family: var(--mono);
+  letter-spacing: 1px;
+}
+
+#teacher-name {
+  width: 120px;
+}
+
+/* ───────────── 畫質設定 ───────────── */
+
+.quality-tuning {
+  font-size: 13px;
+  color: var(--muted);
+  flex-wrap: wrap;
+}
+
+.quality-tuning label {
+  white-space: nowrap;
+}
+
+#quality-fps {
+  width: 58px;
+  margin-left: 4px;
+}
+
+#quality-bitrate {
+  width: 68px;
+  margin-left: 4px;
+}
+
+#quality-size {
+  margin-left: 4px;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.row:last-child {
+  margin-bottom: 0;
+}
+
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.checkbox-row input[type='checkbox'] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+}
+
+.grow {
+  flex: 1;
+  min-width: 0;
+}
+
+/* 執行列：路徑欄要比參數欄寬一倍 */
+.grow-2 {
+  flex: 2;
+  min-width: 0;
+}
+
+.grow-1 {
+  flex: 1;
+  min-width: 0;
+}
+
+.btn {
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  color: var(--text);
+  padding: 6px 12px;
+  font: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    filter 0.12s ease,
+    opacity 0.12s ease;
+}
+
+.btn:hover:not(:disabled) {
+  filter: brightness(1.25);
+}
+
+.btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #06101f;
+  font-weight: 600;
+}
+
+.btn.danger {
+  background: var(--danger);
+  border-color: var(--danger);
+  /* 鮮紅底配白字：原深色字在亮紅上對比不足 */
+  color: #fff;
+  font-weight: 600;
+}
+
+/* 「教學活動」強制鮮紅實底：用 id 拉高優先權，確保任何情況下都是紅底白字 */
+#btn-scene-teach {
+  background: #e11d2e;
+  border-color: #e11d2e;
+  color: #fff;
+  font-weight: 700;
+}
+
+/* 「停止」與教學活動同一色系：紅底白字（廣播中才是 enabled） */
+#btn-stop-broadcast {
+  background: #e11d2e;
+  border-color: #e11d2e;
+  color: #fff;
+  font-weight: 700;
+}
+
+.btn.warn {
+  background: var(--warn);
+  border-color: var(--warn);
+  color: #1a1206;
+  font-weight: 600;
+}
+
+.btn.ghost {
+  background: transparent;
+}
+
+/* 「關閉學生網頁」用的實色（紫）：原 ghost 是透明底、跟面板融在一起，
+   這顆是會把學生瀏覽器整批關掉的動作，要有自己的底色才看得出來。 */
+.btn.violet {
+  background: #8b6cf0;
+  border-color: #8b6cf0;
+  color: #14082b;
+  font-weight: 600;
+}
+
+/* tiny 與標準同尺寸：所有按鈕保持一致的視覺效果（之前 tiny 比較矮小，
+   跟 .grow 的按鈕混在同一個工作設定區看起來高低不齊） */
+.btn.tiny {
+  padding: 6px 12px;
+}
+
+/* 只放按鈕的列：每顆等寬平分整行，看起來整齊一致 */
+.btn-row > .btn {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+/* 勾選列的工具鈕：同樣等寬平分 */
+.per-student-bar .tools .btn {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+/* ───────────── 來源 ───────────── */
+
+.source-preview {
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  object-fit: contain;
+  background: #0a0e15;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+}
+
+.hint {
+  color: var(--muted);
+  font-size: 12px;
+  margin: 10px 0 0;
+}
+
+.hint strong {
+  color: var(--warn);
+}
+
+.hint.warn {
+  color: var(--warn);
+  font-weight: 600;
+}
+
+/* ───────────── 學生卡片 ───────────── */
+
+.students-panel {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.grid {
+  display: grid;
+  /* 每列固定 6 台（30 台＝5 列）；卡片一律 6 欄不漂移 */
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 8px;
+  align-content: start;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.card {
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px;
+  transition:
+    border-color 0.12s ease,
+    background 0.12s ease;
+}
+
+.card:hover {
+  border-color: #3d4d68;
+}
+
+.card .name {
+  font-weight: 600;
+  font-size: 13px;
+  margin-bottom: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.card .meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+/* 勾選行：checkbox + 名稱同一行；勾了的卡片整張亮框 */
+.card .pick-line {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+.card input.pick {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  flex: none;
+  accent-color: #3b82f6;
+  cursor: pointer;
+}
+
+.card.checked {
+  border-color: #3b82f6;
+  background: #16203a;
+}
+
+.card .name {
+  cursor: pointer;
+}
+
+/* 單機功能列：中欄最下方，勾選任何卡片才出現 */
+.per-student-bar {
+  margin-top: 10px;
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.per-student-bar .tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.per-student-bar .tools .count {
+  margin-right: 4px;
+}
+
+.card .actions {
+  display: flex;
+  gap: 4px;
+  margin-top: 7px;
+}
+
+.tag {
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  background: #131924;
+}
+
+.tag.ok {
+  color: var(--ok);
+  border-color: #1d4a35;
+}
+
+.tag.warn {
+  color: var(--warn);
+  border-color: #4a3a1d;
+}
+
+.tag.err {
+  color: var(--danger);
+  border-color: #4a221d;
+}
+
+.tag.accent {
+  color: var(--accent);
+  border-color: #1d3355;
+}
+
+.empty {
+  color: var(--muted);
+  font-size: 13px;
+  text-align: center;
+  padding: 24px 0;
+}
+
+/* ───────────── 記錄 ───────────── */
+
+/* 右欄：上面工作設定、下面事件記錄（吃剩的高度） */
+.work-panel {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.work-block {
+  overflow: auto;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line);
+  flex: none;
+}
+
+.work-block > .hint {
+  margin-top: 0;
+  margin-bottom: 8px;
+}
+
+/* 標題「工作設定」與網址輸入同行（省下一整行） */
+.work-head-row {
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.work-head-title {
+  margin: 0;
+  white-space: nowrap;
+}
+
+/* 送檔／執行合一列：參數欄壞窄，執行路徑吃伸展；檔名標籤不搶寬度 */
+.send-exec-row {
+  align-items: center;
+}
+
+.send-exec-row #exec-path {
+  flex: 3 1 220px;
+  min-width: 180px;
+}
+
+.send-exec-row .send-exec-args {
+  flex: none;
+  width: 84px;
+}
+
+.send-exec-row .count {
+  flex: 0 1 auto;
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 區段中標（開機還原設定）：與 .panel h2 同級大小，只壓間距 */
+.work-block .mid-title {
+  margin: 2px 0 4px;
+}
+
+.work-log {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 120px;
+}
+
+.work-log .panel-head {
+  margin: 10px 0 4px;
+}
+
+.work-log .log {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.log {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-family: var(--mono);
+  font-size: 11.5px;
+}
+
+.log li {
+  padding: 2px 0;
+  border-bottom: 1px solid #1c2330;
+  color: var(--muted);
+  word-break: break-all;
+}
+
+.log li.warn {
+  color: var(--warn);
+}
+
+.log li.error {
+  color: var(--danger);
+}
+
+.log li time {
+  color: #5a6478;
+  margin-right: 6px;
+}
+
+/* ───────────── 單台螢幕監看（浮動小窗） ───────────── */
+
+/* 螢幕正中央；3 秒一張的畫面擺在正中間，老師不看名單時第一眼就是它 */
+.monitor-viewer {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(760px, 56vw);
+  max-height: 88vh;
+  background: #0d1117;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+  padding: 8px;
+  z-index: 999;
+}
+
+.monitor-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.monitor-head #monitor-label {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.monitor-head #monitor-meta {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: right;
+}
+
+.monitor-viewer img {
+  display: block;
+  width: 100%;
+  border-radius: 6px;
+  background: #000;
+  /* 大窗時把高度收住：畫面超出才不會把窗撐過螢幕 */
+  max-height: calc(88vh - 64px);
+  object-fit: contain;
+}

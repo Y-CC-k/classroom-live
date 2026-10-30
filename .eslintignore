@@ -1,0 +1,8 @@
+dist-electron/
+dist/
+node_modules/
+packages/**/dist/
+packages/**/build/
+*.config.*
+*.mjs
+*.cjs

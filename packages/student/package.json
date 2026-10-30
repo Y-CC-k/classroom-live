@@ -1,0 +1,82 @@
+{
+  "name": "@classroom/student",
+  "version": "0.1.0",
+  "private": true,
+  "description": "學生機：接收教師廣播",
+  "main": "dist/main/index.cjs",
+  "scripts": {
+    "dev": "node scripts/build.mjs --dev --watch --run",
+    "build": "node scripts/build.mjs",
+    "start": "electron .",
+    "typecheck": "tsc -p tsconfig.json",
+    "pack": "electron-builder"
+  },
+  "dependencies": {
+    "@classroom/protocol": "*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.18.8",
+    "electron": "33.4.11",
+    "electron-builder": "^26.15.3",
+    "esbuild": "^0.25.10",
+    "typescript": "^5.9.3"
+  },
+  "build": {
+    "appId": "com.classroom.student",
+    "productName": "教室直播 — 學生機",
+    "directories": {
+      "output": "../../dist-electron/student",
+      "buildResources": "build"
+    },
+    "files": [
+      "dist/**/*",
+      "index.js",
+      "config.json",
+      "build/icon.png",
+      "!node_modules/**/*",
+      "resources/**/*",
+      "!node_modules/**/*.d.ts",
+      "!node_modules/**/*.ts",
+      "!node_modules/**/*.map",
+      "!node_modules/**/README*",
+      "!node_modules/**/CHANGELOG*",
+      "!node_modules/**/LICENSE*",
+      "!node_modules/**/test*",
+      "!node_modules/**/benchmark*",
+      "!node_modules/**/example*",
+      "!node_modules/@types",
+      "!node_modules/typescript*",
+      "!**/*.md",
+      "!**/*.markdown"
+    ],
+    "extraResources": [
+      {
+        "from": "../../docs/教室直播系統_操作與維護說明書.md",
+        "to": "docs/教室直播系統_操作與維護說明書.md"
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "教室直播 — 學生機"
+    },
+    "asar": false,
+    "electronLanguages": [
+      "zh-TW",
+      "zh-CN",
+      "en-US"
+    ]
+  }
+}

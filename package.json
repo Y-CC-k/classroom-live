@@ -1,0 +1,114 @@
+{
+  "name": "classroom-live",
+  "version": "0.1.0",
+  "private": true,
+  "description": "教室教師機螢幕直播教學 (Windows / Electron / TypeScript)",
+  "workspaces": [
+    "packages/protocol",
+    "packages/server",
+    "packages/server-gui",
+    "packages/native",
+    "packages/teacher",
+    "packages/student",
+    "packages/sfu"
+  ],
+  "scripts": {
+    "dev:server": "npm run dev --workspace @classroom/server",
+    "dev:server-gui": "npm run dev --workspace @classroom/server-gui",
+    "dev:teacher": "npm run dev --workspace @classroom/teacher",
+    "dev:student": "npm run dev --workspace @classroom/student",
+    "dev:sfu": "npm run dev --workspace @classroom/sfu",
+    "build:server": "npm run pack --workspace @classroom/server",
+    "build:teacher": "npm run build --workspace @classroom/teacher",
+    "build:student": "npm run build --workspace @classroom/student",
+    "build:sfu": "npm run build --workspace @classroom/sfu",
+    "build": "npm run build:teacher && npm run build:student && npm run build:sfu",
+    "pack:teacher": "npm run build:teacher && npm run pack --workspace @classroom/teacher",
+    "pack:student": "npm run build:student && npm run pack --workspace @classroom/student && npm.cmd run make-upgrade-pack",
+    "pack:server": "npm run build:server",
+    "pack:server-gui": "npm run build:server && npm run build --workspace @classroom/server-gui && npm run pack --workspace @classroom/server-gui",
+    "pack:sfu": "npm run build:sfu",
+    "pack:all": "npm run build && npm run pack --workspace @classroom/teacher && npm run pack --workspace @classroom/student && npm run pack --workspace @classroom/server-gui",
+    "make-upgrade-pack": "node scripts/make-upgrade-pack.mjs",
+    "typecheck": "npm run typecheck --workspace @classroom/protocol && npm run typecheck --workspace @classroom/server && npm run typecheck --workspace @classroom/teacher && npm run typecheck --workspace @classroom/student && npm run typecheck --workspace @classroom/server-gui && npm run typecheck --workspace @classroom/sfu",
+    "lint": "eslint . --ext .ts,.tsx,.mjs",
+    "format": "prettier --write .",
+    "smoke": "node scripts/smoke-server.mjs && node scripts/smoke-wol.mjs",
+    "clean": "node scripts/clean.mjs",
+    "test:e2e": "npx playwright test",
+    "test:e2e:headed": "npx playwright test --headed"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^22.18.8",
+    "@vitest/ui": "^5.0.5",
+    "electron-builder": "^26.15.3",
+    "eslint": "^10.13.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.5.7",
+    "playwright": "^1.49.0",
+    "prettier": "^3.9.10",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.72.1",
+    "vitest": "^5.0.5"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "os": [
+    "win32"
+  ],
+  "allowScripts": {
+    "electron@33.4.11": true,
+    "esbuild@0.25.12": true,
+    "esbuild@0.28.2": true,
+    "electron-winstaller@5.4.0": true,
+    "mediasoup@3.32.0": true
+  },
+  "build": {
+    "appId": "com.classroom.live",
+    "productName": "教室直播",
+    "directories": {
+      "output": "dist-electron"
+    },
+    "files": [
+      "packages/**/dist/**/*",
+      "packages/**/node_modules/**/*",
+      "packages/native/build/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "packages/native/build/Release",
+        "to": "native",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "packages/native/bin/win32-x64-130",
+        "to": "native/prebuilt",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "教室直播"
+    }
+  }
+}

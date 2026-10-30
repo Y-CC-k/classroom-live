@@ -1,0 +1,8 @@
+{
+  "_說明": "學生機啟動清理用的集中設定：不詢問直接清（-Force 另由程式帶入）、一律不寫記錄檔。",
+  "Browsers": [],
+  "KeepItems": ["passwords"],
+  "RequireConfirmation": false,
+  "LogEnabled": false,
+  "LogPath": "Logs"
+}

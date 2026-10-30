@@ -1,0 +1,235 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  typecheck:
+    name: TypeScript Type Check
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm.cmd install
+
+      - name: Run TypeScript type check
+        run: npm.cmd run typecheck
+
+  lint:
+    name: Lint & Format Check
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm.cmd install
+
+      - name: Run ESLint
+        run: npm.cmd run lint
+
+      - name: Run Prettier check
+        run: npx.cmd prettier --check .
+
+  test:
+    name: Unit Tests
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm.cmd install
+
+      - name: Run Vitest unit tests
+        run: npx.cmd vitest run
+
+  build:
+    name: Build Packages
+    runs-on: windows-latest
+    needs: [typecheck, lint]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm.cmd install
+
+      - name: Build all packages
+        run: npm.cmd run build
+
+  pack:
+    name: Build Installers
+    runs-on: windows-latest
+    needs: [build]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm.cmd install
+
+      - name: Build all packages
+        run: npm.cmd run build
+
+      - name: Pack teacher and student installers
+        run: npm.cmd run pack:all
+
+      - name: Upload teacher installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: classroom-teacher-installer
+          path: classroom-live/dist-electron/teacher/*.exe
+
+      - name: Upload student installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: classroom-student-installer
+          path: classroom-live/dist-electron/student/*.exe
+
+      - name: Upload server installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: classroom-server-gui-installer
+          path: classroom-live/dist-electron/server-gui/*.exe
+
+      - name: Upload server binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: classroom-server-binary
+          path: classroom-live/dist-electron/server/classroom-server.exe
+
+      - name: Upload upgrade pack
+        uses: actions/upload-artifact@v4
+        with:
+          name: classroom-student-upgrade-pack
+          path: classroom-live/*.zip
+
+  smoke:
+    name: Smoke Tests
+    runs-on: windows-latest
+    needs: [build]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm.cmd install
+
+      - name: Build all packages
+        run: npm.cmd run build
+
+      - name: Run smoke tests
+        run: npm.cmd run smoke
+
+  native-prebuild:
+    name: Build Native Prebuild
+    runs-on: windows-latest
+    needs: [typecheck]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm.cmd install
+
+      - name: Install native build prerequisites
+        run: |
+          npm.cmd install --workspace @classroom/native node-gyp@^11.4.2
+
+      - name: Build native prebuild binary
+        run: npm.cmd run build:prebuild --workspace @classroom/native
+
+      - name: Upload native prebuild binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: classroom-native-prebuild
+          path: packages/native/bin/win32-x64-*/classroom_input.node
+
+  e2e:
+    name: End-to-End Tests
+    runs-on: windows-latest
+    needs: [build]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm.cmd install
+
+      - name: Build all packages
+        run: npm.cmd run build
+
+      - name: Start signaling server
+        run: npm.cmd run dev:server &
+        
+      - name: Wait for server to be ready
+        run: |
+          for i in $(seq 1 30); do
+            if curl -s http://localhost:8787/healthz > /dev/null 2>&1; then
+              echo "Server is ready"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Server failed to start"
+          exit 1
+
+      - name: Run E2E tests
+        run: npm.cmd run test:e2e

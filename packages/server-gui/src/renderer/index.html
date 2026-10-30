@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="utf-8" />
+    <title>教室直播 — 伺服機控制台</title>
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'"
+    />
+    <link rel="stylesheet" href="./renderer.css" />
+  </head>
+  <body>
+    <main class="wrap">
+      <header class="head">
+        <h1>伺服機控制台</h1>
+        <span id="version" class="muted"></span>
+      </header>
+
+      <!-- 執行狀態 -->
+      <section class="card status-card">
+        <div class="status-row">
+          <span class="dot" id="status-dot"></span>
+          <div>
+            <div id="status-text" class="status-text">查詢中…</div>
+            <div id="status-detail" class="muted small"></div>
+          </div>
+          <div class="buttons">
+            <button id="btn-start" class="primary" type="button">啟動</button>
+            <button id="btn-stop" type="button" disabled>停止</button>
+            <button id="btn-restart" type="button" disabled>重新啟動</button>
+          </div>
+        </div>
+        <div class="kv" id="connect-line"></div>
+      </section>
+
+      <!-- 部署設定 -->
+      <section class="card">
+        <h2>伺服機設定（config.json）</h2>
+        <div class="form-row">
+          <label for="cfg-host">綁定位址</label>
+          <input id="cfg-host" type="text" placeholder="0.0.0.0 = 整個區網" spellcheck="false" />
+        </div>
+        <div class="form-row">
+          <label for="cfg-port">連接埠 PORT</label>
+          <input id="cfg-port" type="number" min="1" max="65535" />
+        </div>
+        <div class="form-row">
+          <label for="cfg-max">每房人數上限</label>
+          <input id="cfg-max" type="number" min="1" max="999" />
+        </div>
+        <div class="form-row actions">
+          <button id="btn-save" class="primary" type="button">儲存設定</button>
+          <span id="save-message" class="muted small"></span>
+        </div>
+        <p class="hint muted small" id="config-path"></p>
+      </section>
+
+      <!-- 教室在線統計：輪詢引擎 /healthz 得來的即時狀態 -->
+      <section class="card">
+        <h2>教室在線統計</h2>
+        <div id="live-stats" class="muted">（引擎啟動後每 5 秒更新）</div>
+      </section>
+
+      <!-- 歷程 log -->
+      <section class="card grow">
+        <div class="log-head">
+          <h2>執行紀錄</h2>
+          <button id="btn-clear-log" type="button">清空</button>
+        </div>
+        <pre id="log" class="log"></pre>
+      </section>
+    </main>
+    <script src="./renderer.js"></script>
+  </body>
+</html>

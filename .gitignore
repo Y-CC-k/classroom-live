@@ -1,0 +1,21 @@
+﻿# Electron 打包輸出（大檔案，不納入版本控制）
+dist-electron/
+
+# Node 模組
+node_modules/
+
+# 建置輸出
+packages/*/dist/
+packages/*/build/
+
+# 日誌
+*.log
+*.zip
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db

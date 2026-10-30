@@ -1,0 +1,24 @@
+{
+  "name": "@classroom/native",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Windows 原生層：SendInput 鍵鼠注入 + 低階鉤子輸入攔截",
+  "main": "./lib/index.ts",
+  "types": "./lib/index.ts",
+  "gypfile": true,
+  "scripts": {
+    "install": "node scripts/install.mjs",
+    "build": "node-gyp rebuild",
+    "build:debug": "node-gyp rebuild --debug",
+    "build:prebuild": "node scripts/build-prebuild.mjs",
+    "rebuild": "electron-rebuild -f -w @classroom/native",
+    "clean": "node-gyp clean"
+  },
+  "dependencies": {
+    "node-addon-api": "^8.5.0"
+  },
+  "devDependencies": {
+    "@electron/rebuild": "^4.0.1",
+    "node-gyp": "^11.4.2"
+  }
+}

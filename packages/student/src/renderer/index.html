@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' file: data: blob:; media-src 'self' blob: mediastream:; connect-src 'self' ws: wss:"
+    />
+    <title>教室直播 — 學生機</title>
+    <link rel="stylesheet" href="renderer.css" />
+  </head>
+  <body>
+    <div id="stage" class="stage">
+      <video id="broadcast" class="broadcast" autoplay muted playsinline hidden></video>
+      <!-- 圖片廣播模式：教師機逐張送 JPEG，這裡負責顯示（樣式與 video 共用 .broadcast） -->
+      <img id="broadcast-img" class="broadcast" alt="" hidden />
+
+      <div id="idle" class="idle">
+        <!-- 未開始廣播時的底圖：多媒體電腦室使用守則海報（隨 App 打包） -->
+        <img id="idle-rules" class="idle-rules" src="rules.png" alt="多媒體電腦室使用守則" />
+        <!-- 底部提示條：不遮守則內容，只顯示目前狀態 -->
+        <div class="idle-note">
+          <h1 id="idle-title">教室直播</h1>
+          <p id="idle-text">尚未連線到教師機</p>
+        </div>
+      </div>
+
+      <div id="banner" class="banner">
+        <span id="banner-dot" class="dot"></span>
+        <span id="banner-text">未連線</span>
+        <span id="banner-class" class="banner-class"></span>
+      </div>
+
+      <button id="btn-gear" class="gear" title="設定">⚙</button>
+      <button id="btn-menu" class="gear menu-btn" title="選單">☰</button>
+
+      <!--
+        視窗內的「控制選單」。
+        Windows 11 預設會把新程式的托盤圖示收進「隱藏的圖示」溢位區，
+        學生在工具列上根本看不到那顆圖示，也就找不到托盤選單；
+        這裡提供一個一定看得到的入口（功能與托盤選單一致）。
+      -->
+      <div id="menu" class="menu-pop" hidden>
+        <button type="button" data-command="reconnect">重新連線</button>
+        <button type="button" data-command="toggle-fullscreen">切換全螢幕</button>
+        <button type="button" data-command="settings">顯示設定</button>
+        <div class="menu-sep"></div>
+        <button type="button" data-command="hide-to-tray">縮到系統匣</button>
+        <button type="button" class="danger" data-command="quit">結束學生機</button>
+      </div>
+    </div>
+
+    <aside id="settings" class="settings" hidden>
+      <h2>學生機設定</h2>
+
+      <label>教師機／伺服器位址<input id="server-url" type="text" spellcheck="false" /></label>
+      <label>班級代碼<input id="class-id" type="text" spellcheck="false" maxlength="16" placeholder="123-456" /></label>
+      <label>本機名稱（固定為本機 IP，不可修改）<input id="student-name" type="text" maxlength="32" readonly /></label>
+      <label>收檔資料夾（教師機送檔落地處）</label>
+      <div class="dir-row">
+        <input id="save-dir" type="text" spellcheck="false" readonly />
+        <button id="btn-choose-dir" class="btn ghost">瀏覽…</button>
+      </div>
+
+      <label class="check">
+        <input id="auto-connect" type="checkbox" />
+        <span>啟動後自動連線</span>
+      </label>
+      <label class="check">
+        <input id="auto-fullscreen" type="checkbox" />
+        <span>收到廣播時自動全螢幕</span>
+      </label>
+      <label class="check">
+        <input id="auto-start" type="checkbox" />
+        <span>登入時自動啟動（供一鍵開機用，可關閉）</span>
+      </label>
+
+      <div class="settings-actions">
+        <button id="btn-connect" class="btn primary">連線</button>
+        <button id="btn-close-settings" class="btn ghost">關閉</button>
+      </div>
+
+      <section class="log-section">
+        <h3>記錄</h3>
+        <ul id="log" class="log"></ul>
+      </section>
+    </aside>
+
+    <script src="renderer.js"></script>
+  </body>
+</html>

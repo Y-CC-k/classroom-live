@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <!--
+      CSP 刻意收緊：renderer 不需要任何外部資源。
+      畫面來源一律走 WebRTC（blob:/mediastream:），因此不需要放寬 media-src；
+      img-src 加 blob: 是「單台螢幕監看」（浮動小窗的 JPEG 用 createObjectURL）。
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob: mediastream:; connect-src 'self' ws: wss:"
+    />
+    <title>教室直播 — 教師機</title>
+    <link rel="stylesheet" href="renderer.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-dot"></span>
+        <strong>教室直播</strong>
+        <span class="brand-role">教師機</span>
+      </div>
+
+      <div class="conn">
+        <label
+          >伺服器 <input id="server-url" type="text" spellcheck="false" placeholder="ws://192.168.1.10:8787"
+        /></label>
+        <label>班級 <input id="class-id" type="text" spellcheck="false" maxlength="16" placeholder="123-456" /></label>
+        <label>名稱 <input id="teacher-name" type="text" maxlength="32" /></label>
+        <button id="btn-connect" class="btn primary">連線</button>
+        <button id="btn-new-class" class="btn ghost" title="產生新的班級代碼">新班級</button>
+      </div>
+
+      <div class="statusline">
+        <span id="status-dot" class="dot"></span>
+        <span id="status-text">未連線</span>
+      </div>
+    </header>
+
+    <main class="layout">
+      <!-- 左欄（1）：來源預覽與畫質設定 -->
+      <section class="panel broadcast-panel">
+        <h2>預覽與畫質</h2>
+        <div class="row">
+          <label for="broadcast-mode">模式</label>
+          <select id="broadcast-mode" class="grow">
+            <option value="video">即時畫面（預設）</option>
+            <option value="image">圖片逐張（低延遲）</option>
+          </select>
+        </div>
+        <div class="row">
+          <select id="source-select" class="grow"></select>
+          <button id="btn-refresh-sources" class="btn ghost">重新整理</button>
+        </div>
+        <p id="source-warning" class="hint warn" hidden></p>
+        <div class="row">
+          <img id="source-preview" class="source-preview" alt="來源預覽" />
+          <video id="source-video" class="source-preview" autoplay muted playsinline hidden></video>
+        </div>
+        <div class="row">
+          <label class="checkbox-row">
+            <input id="flip-camera" type="checkbox" />
+            <span>攝影機鏡像修正（左右翻轉）</span>
+          </label>
+        </div>
+        <div class="row">
+          <label class="checkbox-row">
+            <input id="hardware-codec" type="checkbox" />
+            <span>優先 H.264 硬體編碼（學生機多時更流暢、更省 CPU）</span>
+          </label>
+        </div>
+        <div class="row">
+          <label for="quality-preset">畫質</label>
+          <select id="quality-preset" class="grow"></select>
+        </div>
+        <div class="row quality-tuning">
+          <label>幀率 <input id="quality-fps" type="number" min="1" max="60" step="1" /> fps</label>
+          <label>頻寬 <input id="quality-bitrate" type="number" min="0.5" max="30" step="0.5" /> Mbps</label>
+          <label>
+            尺寸上限
+            <select id="quality-size">
+              <option value="0">原始</option>
+              <option value="1920x1080">1920×1080</option>
+              <option value="1600x900">1600×900</option>
+              <option value="1280x720">1280×720</option>
+            </select>
+          </label>
+          <label>
+            停留幀畫質
+            <select id="quality-sharp">
+              <option value="0.85">標準（0.85）</option>
+              <option value="0.92">清楚（0.92）</option>
+              <option value="0.97">極清楚（0.97）</option>
+            </select>
+          </label>
+        </div>
+        <div class="row quality-tuning">
+          <label class="checkbox-row">
+            <input id="adaptive-quality" type="checkbox" />
+            <span>自適應畫質（網路擁塞時自動降低畫質，緩解秒差）</span>
+          </label>
+        </div>
+        <p id="quality-hint" class="hint"></p>
+        <!-- 圖片廣播頻寬統計（泵每 10 秒回報一次；排課時判斷「網路還是編碼」卡哪邊） -->
+        <p id="pump-stats" class="hint" hidden></p>
+
+        <!-- 廣播開關：跟著來源／畫質放回本區塊最下方，操作順序 = 由上到下 -->
+        <div class="row">
+          <button id="btn-start-broadcast" class="btn primary grow">開始廣播</button>
+          <button id="btn-stop-broadcast" class="btn danger grow" disabled>停止</button>
+        </div>
+        <p class="hint">
+          來源有 <strong>🖥 整個螢幕</strong>、🪟 單一視窗與 📷 攝影機，預設會選整個螢幕。
+          選好來源與畫質後，按最下方的「開始廣播」。
+        </p>
+      </section>
+
+      <!-- 中欄（3）：學生機狀態，每列 6 台 -->
+      <section class="panel students-panel">
+        <div class="panel-head">
+          <h2>學生機 <span id="student-count" class="count">0</span></h2>
+          <button id="btn-broadcast-all" class="btn tiny ghost" hidden>
+            直播中（<span id="broadcast-target-label"></span>）▸ 回到全班
+          </button>
+        </div>
+
+        <div id="student-grid" class="grid"></div>
+        <p id="empty-students" class="empty">尚無學生連線。請學生機輸入相同的班級代碼。</p>
+        <p id="scale-hint" class="hint warn" hidden></p>
+
+        <!-- 單機功能列：只對上方卡片「勾選」的學生機生效 -->
+        <div id="per-student-bar" class="per-student-bar" hidden>
+          <div class="tools">
+            <span id="checked-count" class="count"></span>
+            <button id="btn-lock-checked" class="btn tiny warn">🔒 鎖定</button>
+            <button id="btn-unlock-checked" class="btn tiny ghost">🔓 解除</button>
+            <button id="btn-file-checked" class="btn tiny ghost">📁 送檔</button>
+            <button id="btn-url-checked" class="btn tiny ghost">🌐 開網址</button>
+            <button id="btn-exec-checked" class="btn tiny ghost">▶ 執行</button>
+            <button id="btn-shutdown-checked" class="btn tiny danger">⏻ 關機</button>
+            <button id="btn-reboot-checked" class="btn tiny danger">⏻ 重開機</button>
+            <button id="btn-watch-checked" class="btn tiny primary">👁 監看</button>
+            <button id="btn-cast-checked" class="btn tiny primary">▶ 直播</button>
+            <button id="btn-uncheck-all" class="btn tiny ghost">✕ 取消勾選</button>
+          </div>
+          <p class="hint">
+            此列只對卡片勾選的台生效（點卡片即可勾／取消）。監看＝把勾選那台的螢幕以 3
+            秒一張回傳到右下角的浮動小窗；直播＝畫面只送勾選的台；送檔用工作設定挑好的檔案、開網址／執行用右欄填好的值。
+          </p>
+        </div>
+      </section>
+
+      <!-- 右欄（2）：工作設定（推播／檔案／升級／秩序）＋ 事件記錄 -->
+      <section class="panel work-panel">
+        <div class="work-block">
+          <!-- 標題與網址推播同一行，省下一整行直的空間 -->
+          <div class="row push-url-row work-head-row">
+            <h2 class="work-head-title">工作設定</h2>
+            <input
+              id="push-url"
+              class="grow"
+              type="text"
+              spellcheck="false"
+              placeholder="貼上網址，例如 moodle.example.edu/lesson/123"
+            />
+            <button id="btn-push-url" class="btn primary">開啟</button>
+          </div>
+          <p class="hint">開在全部已連線學生機的瀏覽器（http/https）。廣播中建議先停止。</p>
+
+          <!-- 課堂主要動作列：場景鍵＋靜音／關網頁 -->
+          <div class="row btn-row">
+            <button id="btn-scene-teach" class="btn danger grow">▶ 教學活動</button>
+            <button id="btn-scene-learn" class="btn primary grow">🖐 學習操作</button>
+            <button id="btn-mute" class="btn warn grow">🔇 靜音全班</button>
+            <button id="btn-close-browsers" class="btn violet grow">✖ 關閉網頁</button>
+          </div>
+
+          <!-- 課堂秩序與下課收攏：鎖定鍵鼠／全班關機／重開機全班 -->
+          <div class="row btn-row">
+            <button id="btn-lock" class="btn danger grow">🔒 鎖定全班</button>
+            <button id="btn-unlock" class="btn primary grow">🔓 解除鎖定</button>
+            <button id="btn-shutdown" class="btn danger grow">⏻ 全班關機</button>
+            <button id="btn-reboot-all" class="btn warn grow">⟳ 重開機</button>
+          </div>
+
+          <!-- 開機還原設定：由教師機統一管理每台學生機的「開機自動還原 C:」 -->
+          <h2 class="mid-title">開機還原設定</h2>
+          <div class="row btn-row">
+            <button id="btn-uwf-setup" class="btn tiny">🛠 初始化還原</button>
+            <button id="btn-uwf-status" class="btn tiny">🛡 查還原狀態</button>
+            <button id="btn-uwf-maint-on" class="btn tiny warn">🛡 維護 開</button>
+            <button id="btn-uwf-maint-off" class="btn tiny primary">🛠 維護 關</button>
+          </div>
+
+          <!-- 網站推播：輸入欄已上移與標題同行（見上） -->
+
+          <!-- 送檔＋執行合一：選了檔案＝送檔／升級；沒選檔案但路徑有值＝執行程式 -->
+          <div class="row push-url-row send-exec-row">
+            <input id="file-input" type="file" multiple hidden />
+            <button id="btn-pick-file" class="btn ghost">選擇檔案…</button>
+            <span id="file-label" class="count grow">尚未選擇檔案</span>
+            <input id="exec-path" class="grow" type="text" spellcheck="false" placeholder="執行路徑，如 D:\t.bat" />
+            <input id="exec-args" class="send-exec-args" type="text" spellcheck="false" placeholder="參數（可留空）" />
+            <button id="btn-send-file" class="btn primary">送檔／執行</button>
+          </div>
+          <p class="hint">
+            選了檔案＝送檔到學生機 config 資料夾（預設 D:\SETUP，同名自動編號），挑「升級包」zip
+            會自動走升級並重啟；沒選檔案但路徑有值＝啟動學生機上已有的檔案（.bat/.cmd 開視窗）。
+          </p>
+        </div>
+
+        <div class="work-log">
+          <div class="panel-head">
+            <h2>事件記錄</h2>
+            <button id="btn-clear-log" class="btn ghost">清除</button>
+          </div>
+          <ul id="log" class="log"></ul>
+        </div>
+      </section>
+    </main>
+
+    <!-- 單台螢幕監看：3 秒一張的浮動小窗（右下角） -->
+    <div id="monitor-viewer" class="monitor-viewer" hidden>
+      <div class="monitor-head">
+        <span id="monitor-label">監看中…</span>
+        <span id="monitor-meta" class="muted small"></span>
+        <button id="btn-monitor-stop" class="btn tiny danger">✕ 關閉監看</button>
+      </div>
+      <img id="monitor-img" alt="學生機螢幕（每 3 秒更新一張）" />
+    </div>
+
+    <script src="renderer.js"></script>
+  </body>
+</html>

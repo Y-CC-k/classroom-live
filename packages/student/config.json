@@ -1,0 +1,7 @@
+{
+  "serverUrl": "ws://172.16.100.17:8787",
+  "classId": "115-001",
+  "lockServerUrl": false,
+  "fileSaveDir": "D:\\",
+  "autoConnect": true
+}

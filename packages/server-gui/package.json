@@ -1,0 +1,74 @@
+{
+  "name": "@classroom/server-gui",
+  "version": "0.1.0",
+  "private": true,
+  "description": "伺服機控制台：圖形化啟動／停止信號伺服器（管理 classroom-server.exe）",
+  "main": "dist/main/index.cjs",
+  "scripts": {
+    "dev": "node scripts/build.mjs --dev --watch --run",
+    "build": "node scripts/build.mjs",
+    "start": "electron .",
+    "typecheck": "tsc -p tsconfig.json",
+    "pack": "electron-builder"
+  },
+  "dependencies": {
+    "@classroom/protocol": "*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.18.8",
+    "electron": "33.4.11",
+    "electron-builder": "^26.15.3",
+    "esbuild": "^0.25.10",
+    "typescript": "^5.9.3"
+  },
+  "build": {
+    "appId": "com.classroom.server-gui",
+    "productName": "教室直播 — 伺服機控制台",
+    "directories": {
+      "output": "../../dist-electron/server-gui",
+      "buildResources": "build"
+    },
+    "files": [
+      "dist/**/*",
+      "index.js",
+      "build/icon.png",
+      "!node_modules/**/*"
+    ],
+    "electronLanguages": [
+      "zh-TW",
+      "zh-CN",
+      "en-US"
+    ],
+    "extraResources": [
+      {
+        "from": "../server/dist",
+        "to": "server",
+        "filter": [
+          "classroom-server.exe"
+        ]
+      },
+      {
+        "from": "../server/config.json",
+        "to": "server/config.json"
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "教室直播 — 伺服機控制台"
+    },
+    "asar": false
+  }
+}

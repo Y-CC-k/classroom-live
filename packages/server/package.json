@@ -1,0 +1,25 @@
+{
+  "name": "@classroom/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "教室伺服器：房間管理 + WebRTC 信令轉發",
+  "main": "./src/index.ts",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts",
+    "build": "node scripts/build.mjs --bundle",
+    "pack": "node scripts/build.mjs",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@classroom/protocol": "*",
+    "ws": "^8.18.3"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.18.1",
+    "postject": "^1.0.0-alpha.6",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3"
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "host": "0.0.0.0",
+  "port": 8787,
+  "maxStudentsPerRoom": 60,
+  "heartbeatIntervalMs": 5000,
+  "heartbeatMissLimit": 3,
+  "emptyRoomTtlMs": 600000,
+  "verbose": true
+}
