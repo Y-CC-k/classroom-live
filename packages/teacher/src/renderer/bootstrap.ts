@@ -914,7 +914,12 @@ async function connect(): Promise<void> {
   els.btnStart.disabled = false;
 
   // 初始化監控牆（session 已建立）
-  monitorWall = new MonitorWall(els.monitorWall, session, els.btnMonitorWall);
+  // 監控牆：勾選的台優先；沒勾選則監看全部已連線學生機
+  const activeSession = session;
+  monitorWall = new MonitorWall(els.monitorWall, activeSession, els.btnMonitorWall, () => {
+    if (checkedPeers.size > 0) return [...checkedPeers];
+    return activeSession.students().map(s => s.info.id);
+  });
 
   // 應用自適應畫質設定
   session.setAdaptiveQualityEnabled(els.adaptiveQuality.checked);

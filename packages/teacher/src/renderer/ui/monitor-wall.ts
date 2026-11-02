@@ -172,11 +172,19 @@ export class MonitorWall {
   private readonly cells = new Map<string, WallCell>();
   private visible = false;
   private readonly toggleBtn: HTMLButtonElement;
+  /** 回傳要監看的學生 ID 列表（勾選的台優先，否則全部已連線學生機） */
+  private readonly getWatchTargets: () => string[];
 
-  constructor(container: HTMLElement, session: TeacherSession, toggleBtn: HTMLButtonElement) {
+  constructor(
+    container: HTMLElement,
+    session: TeacherSession,
+    toggleBtn: HTMLButtonElement,
+    getWatchTargets: () => string[]
+  ) {
     this.container = container;
     this.session = session;
     this.toggleBtn = toggleBtn;
+    this.getWatchTargets = getWatchTargets;
 
     // 注入樣式
     const styleEl = document.createElement('style');
@@ -199,15 +207,18 @@ export class MonitorWall {
     if (this.visible) {
       this.hide();
     } else {
-      this.show();
+      this.show(this.getWatchTargets());
     }
   }
 
   /** 顯示監控牆並開始監看指定學生 */
   show(peerIds?: string[]): void {
-    if (peerIds && peerIds.length > 0) {
-      this.setStudents(peerIds);
+    const targets = peerIds ?? [];
+    if (targets.length === 0) {
+      this.log('warn', '沒有可監看的學生機：請先勾選學生機，或等學生機連線。');
+      return;
     }
+    this.setStudents(targets);
     this.container.hidden = false;
     this.container.classList.add('visible');
     this.visible = true;
@@ -237,9 +248,9 @@ export class MonitorWall {
     this.cells.clear();
 
     // 建立新格子並開始監看
+    const students = this.session.students();
     for (const peerId of peerIds) {
-      const link = this.session['broadcastManager'].getLinks().get(peerId);
-      const name = link?.state.info.name ?? peerId;
+      const name = students.find(s => s.info.id === peerId)?.info.name ?? peerId;
       const cell = new WallCell(peerId, name);
       this.cells.set(peerId, cell);
       this.container.appendChild(cell.elementRef);
