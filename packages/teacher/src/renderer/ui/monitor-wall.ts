@@ -36,16 +36,22 @@ const COLUMNS_FOR_COUNT: Record<number, string> = {
 /** 監控牆容器樣式（注入到 document head） */
 const WALL_STYLE = `
 #monitor-wall {
+  /* fixed 全螢幕覆蓋層：main 已佔滿 body 且 overflow hidden，
+     一般區塊會被擠出視窗外完全看不到 */
+  position: fixed;
+  top: 61px;   /* 避開 topbar（與 .layout 的 calc(100% - 61px) 一致） */
+  left: 0;
+  right: 0;
+  bottom: 0;
   display: none;
   grid-template-columns: repeat(4, 1fr);
+  grid-auto-rows: minmax(140px, 1fr);   /* 每格最小高度，否則格子塌縮為 0 */
   gap: 8px;
   padding: 8px;
   background: #0d1117;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  max-height: 88vh;
+  border-top: 1px solid var(--line);
+  z-index: 500;
   overflow: auto;
-  z-index: 50;
 }
 #monitor-wall.visible {
   display: grid;
