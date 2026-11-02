@@ -50,6 +50,8 @@ export type CtlMessage =
   | { t: 'idle-screen'; title: string; text: string }
   /** 待機圖已在學生機落地：通知 renderer 重取並套用（不動文字欄位） */
   | { t: 'idle-image-applied' }
+  /** 清空學生機收檔資料夾內的檔案（磁碟根目錄時學生端會自動改清 SETUP 或跳過） */
+  | { t: 'clean-files' }
   /**
    * 獨立電子白板模式：學生機全螢幕白底只顯示筆跡（蓋過廣播畫面）。
    * 與「pen」疊加標註獨立：座標相對白板（邏輯比例 16:9，兩端 contain 對齊）。
@@ -144,6 +146,8 @@ export type EvtMessage =
   | { t: 'update-result'; ok: boolean; stage: string; message?: string }
   /** 開機還原（UWF）執行結果：text 是給教師看的一行摘要 */
   | { t: 'uwf-result'; ok: boolean; text: string; rebooting?: boolean }
+  /** 收檔資料夾清理結果（deleted = 刪除項數；ok=false 時 message 說明原因） */
+  | { t: 'clean-result'; ok: boolean; deleted: number; message?: string }
   | { t: 'pong'; ts: number }
   | { t: 'error'; message: string }
   /**

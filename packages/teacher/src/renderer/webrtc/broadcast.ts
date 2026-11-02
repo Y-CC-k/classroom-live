@@ -486,6 +486,15 @@ export class BroadcastManager {
         return;
       }
       if (parsed.t === 'pong') return;
+      if (parsed.t === 'clean-result') {
+        const name = this.links.get(peerId)?.state.info.name ?? peerId;
+        if (parsed.ok) {
+          this.options.onLog('info', `${name} 已清理收檔資料夾（${parsed.deleted} 項）`);
+        } else {
+          this.options.onLog('warn', `${name} 清理收檔資料夾失敗：${parsed.message ?? '未知原因'}`);
+        }
+        return;
+      }
       if (parsed.t === 'update-result') {
         const name = this.links.get(peerId)?.state.info.name ?? peerId;
         if (parsed.ok) {

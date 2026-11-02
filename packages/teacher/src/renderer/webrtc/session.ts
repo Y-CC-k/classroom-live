@@ -386,6 +386,18 @@ export class TeacherSession {
     return this.fileTransferManager.sendIdleImage(file);
   }
 
+  /** 清空全部已連線學生機的收檔資料夾。回傳已送台數。 */
+  cleanFilesAll(): number {
+    let sent = 0;
+    for (const [peerId, link] of this.broadcastManager.getLinks()) {
+      if (link.ctl?.readyState === 'open') {
+        this.broadcastManager.sendCtl(peerId, { t: 'clean-files' });
+        sent++;
+      }
+    }
+    return sent;
+  }
+
   /** 進入／離開獨立電子白板模式（學生機全螢幕白底）。 */
   boardModeAll(on: boolean): number {
     let sent = 0;

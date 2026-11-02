@@ -1169,6 +1169,20 @@ async function handleControl(raw: unknown): Promise<void> {
       boardRedraw();
       break;
 
+    case 'clean-files': {
+      // 老師要求清空收檔資料夾（下課收操用）
+      log('info', '老師要求清理收檔資料夾');
+      const result = await window.studentApi.cleanFileDir();
+      sendEvt({
+        t: 'clean-result',
+        ok: result.ok,
+        deleted: result.deleted,
+        message: result.message,
+      });
+      log(result.ok ? 'info' : 'warn', result.message ?? `已清理 ${result.deleted} 項`);
+      break;
+    }
+
     case 'idle-image-applied':
       // 老師送來的新待機圖已落地：重取並套用
       void refreshIdleImage();

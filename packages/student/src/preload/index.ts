@@ -42,6 +42,8 @@ const api: StudentApi = {
   getIdleImage: () => ipcRenderer.invoke(IPC.getIdleImage) as Promise<string | null>,
   discoverServers: (timeoutMs?: number) =>
     ipcRenderer.invoke(IPC.discoverServers, timeoutMs) as Promise<{ wsUrl: string }[]>,
+  cleanFileDir: () =>
+    ipcRenderer.invoke(IPC.cleanFileDir) as Promise<{ ok: boolean; deleted: number; message?: string }>,
   execProgram: (target: string, args: string[]) =>
     ipcRenderer.invoke(IPC.execProgram, target, args) as Promise<{ ok: boolean; message?: string }>,
   uwfAction: (

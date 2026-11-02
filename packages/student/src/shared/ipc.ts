@@ -41,6 +41,8 @@ export const IPC = {
   getIdleImage: 'student:get-idle-image',
   /** UDP 廣播搜尋區網中的教室伺服器 */
   discoverServers: 'student:discover-servers',
+  /** 清空收檔資料夾內的檔案 */
+  cleanFileDir: 'student:clean-file-dir',
   /**
    * 教師端「執行程式」（ctl exec）：啟動學生機上的指定檔案。
    * .bat/.cmd 以 cmd /c 開主控台視窗；其他直接啟動。
@@ -206,6 +208,8 @@ export interface StudentApi {
   getIdleImage(): Promise<string | null>;
   /** UDP 廣播搜尋區網中的教室伺服器；回傳找到的 ws 位址清單 */
   discoverServers(timeoutMs?: number): Promise<{ wsUrl: string }[]>;
+  /** 清空收檔資料夾內的檔案；deleted = 刪除項數 */
+  cleanFileDir(): Promise<{ ok: boolean; deleted: number; message?: string }>;
   /**
    * 教師端「執行程式」（ctl exec）：啟動學生機上的指定檔案。
    * .bat/.cmd 以 cmd /c 開主控台視窗；其他直接啟動（bundle 以上全部使用者權限）。

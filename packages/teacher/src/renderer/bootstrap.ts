@@ -168,6 +168,7 @@ const els = {
   boardWidth: $<HTMLSelectElement>('board-width'),
   boardPenTool: $<HTMLButtonElement>('board-tool-pen'),
   boardEraserTool: $<HTMLButtonElement>('board-tool-eraser'),
+  btnCleanFiles: $<HTMLButtonElement>('btn-clean-files'),
   btnIdleImage: $<HTMLButtonElement>('btn-idle-image'),
   idleImageLabel: $<HTMLSpanElement>('idle-image-label'),
 
@@ -1468,6 +1469,42 @@ function bindEvents(): void {
     boardInstance?.setTool('eraser');
     els.boardEraserTool.classList.add('active');
     els.boardPenTool.classList.remove('active');
+  });
+
+  // ── 清理全班收檔夾（雙確認，仿全班關機）──
+  let cleanPhase: 'idle' | 'arm' = 'idle';
+  let cleanTimer: number | null = null;
+  const resetCleanButton = (): void => {
+    if (cleanTimer !== null) {
+      window.clearTimeout(cleanTimer);
+      cleanTimer = null;
+    }
+    cleanPhase = 'idle';
+    els.btnCleanFiles.textContent = '🧹 清收檔夾';
+  };
+  els.btnCleanFiles.addEventListener('click', () => {
+    if (!session?.isConnected) {
+      log('warn', '尚未連線；請先按「連線」。');
+      resetCleanButton();
+      return;
+    }
+    if (cleanPhase === 'arm') {
+      const sent = session.cleanFilesAll();
+      if (sent > 0) {
+        log('info', `清理指令已送給 ${sent} 台；各台結果見下方記錄。`);
+      } else {
+        log('warn', '沒有學生機可清理（控制通道尚未連上任何一台）。');
+      }
+      resetCleanButton();
+      return;
+    }
+    cleanPhase = 'arm';
+    els.btnCleanFiles.textContent = '⚠ 確定清理';
+    cleanTimer = window.setTimeout(() => {
+      cleanTimer = null;
+      cleanPhase = 'idle';
+      els.btnCleanFiles.textContent = '🧹 清收檔夾';
+    }, 5000);
   });
 
   // 自適應畫質開關

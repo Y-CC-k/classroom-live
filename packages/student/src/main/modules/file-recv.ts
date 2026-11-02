@@ -165,6 +165,10 @@ export function registerFileIpc(): void {
     saveDir: pickSaveDir() ?? getConfig().fileSaveDir,
   }));
 
+  ipcMain.handle(IPC.cleanFileDir, async (): Promise<{ ok: boolean; deleted: number; message?: string }> => {
+    return cleanFileDir();
+  });
+
   ipcMain.handle(IPC.getIdleImage, async (): Promise<string | null> => {
     const imagePath = getConfig().idleImagePath;
     if (!imagePath || !fs.existsSync(imagePath)) return null;
@@ -310,6 +314,41 @@ export function registerFileIpc(): void {
   });
 }
 
+/**
+ * 清空收檔資料夾頂層的所有項目（教師端「🧹 清理收檔夾」遙控）。
+ * 安全保護：收檔資料夾若設為磁碟根目錄（例如 D:\），改清 SETUP 子資料夾；
+ * SETUP 也不存在則直接拒絕，絕不誤刪磁碟根層資料。
+ */
+export async function cleanFileDir(): Promise<{ ok: boolean; deleted: number; message?: string }> {
+  let dir = pickSaveDir();
+  if (!dir) return { ok: false, deleted: 0, message: '收檔資料夾不可用' };
+  const resolved = path.resolve(dir);
+  if (path.win32.parse(resolved).root.toLowerCase() === resolved.toLowerCase()) {
+    const setupDir = path.join(resolved, 'SETUP');
+    if (fs.existsSync(setupDir)) {
+      dir = setupDir;
+    } else {
+      return { ok: false, deleted: 0, message: '收檔資料夾為磁碟根目錄，為安全起見已跳過清理' };
+    }
+  }
+  let deleted = 0;
+  try {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      try {
+        if (entry.isDirectory()) fs.rmSync(full, { recursive: true, force: true });
+        else fs.unlinkSync(full);
+        deleted++;
+      } catch {
+        /* 單一項目失敗（被占用等）略過，不中斷整批 */
+      }
+    }
+    console.log('[file] 收檔資料夾已清理：' + dir + '（' + deleted + ' 項）');
+    return { ok: true, deleted };
+  } catch (error) {
+    return { ok: false, deleted, message: error instanceof Error ? error.message : String(error) };
+  }
+}
 function readBuildInfo(): string | null {
   try {
     const info = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'build-info.json'), 'utf8')) as {
