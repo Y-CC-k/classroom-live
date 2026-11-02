@@ -62,6 +62,24 @@ export class FileTransferManager {
     return sent.length;
   }
 
+  /**
+   * 更換學生機待機底圖：把圖片以固定檔名「待機畫面.xxx」送出，
+   * 學生機落地後存進 userData 並自動套用（取代內建守則海報）。
+   * 回傳已開始送出的台數。
+   */
+  sendIdleImage(file: File): number {
+    const ext = (file.name.match(/\.(png|jpe?g|webp)$/i)?.[0] ?? '.png').toLowerCase();
+    const renamed = new File([file], `待機畫面${ext}`, { type: file.type });
+    let sent = 0;
+    for (const [peerId, link] of this.links) {
+      if (link.file?.readyState === 'open') {
+        void this.deliverFiles(peerId, link.file, [renamed]);
+        sent++;
+      }
+    }
+    return sent;
+  }
+
   /** 對單一台送檔（走該台的檔案通道） */
   sendFilesToStudent(peerId: string, files: File[]): boolean {
     const link = this.links.get(peerId);

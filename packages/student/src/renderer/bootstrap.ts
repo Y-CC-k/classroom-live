@@ -50,6 +50,9 @@ const els = {
   bannerClass: $<HTMLSpanElement>('banner-class'),
   idleTitle: $<HTMLHeadingElement>('idle-title'),
   idleText: $<HTMLParagraphElement>('idle-text'),
+  idleRules: $<HTMLImageElement>('idle-rules'),
+  btnDiscover: $<HTMLButtonElement>('btn-discover'),
+  discoverResults: $<HTMLDivElement>('discover-results'),
 
   settings: $<HTMLElement>('settings'),
   serverUrl: $<HTMLInputElement>('server-url'),
@@ -91,6 +94,8 @@ let imgCtl: RTCDataChannel | null = null;
  */
 let incomingFile: { id: string; name: string; size: number } | null = null;
 let teacherId: string | null = null;
+/** 本工作階段是否曾成功連上伺服器（自動搜尋只對「從未連上」觸發） */
+let everConnected = false;
 let selfId: string | null = null;
 let pendingIce: RTCIceCandidateInit[] = [];
 let appVersion = '0.0.0';
@@ -123,6 +128,19 @@ function log(level: 'info' | 'warn' | 'error', message: string): void {
   item.textContent = `[${new Date().toLocaleTimeString('zh-TW', { hour12: false })}] ${message}`;
   els.log.prepend(item);
   while (els.log.childElementCount > 200) els.log.lastElementChild?.remove();
+}
+
+/** 重取自訂待機底圖（教師端送來的待機畫面.xxx）；無則保持內建守則海報 */
+async function refreshIdleImage(): Promise<void> {
+  try {
+    const dataUrl = await window.studentApi.getIdleImage();
+    if (dataUrl) {
+      els.idleRules.src = dataUrl;
+      els.idleRules.hidden = false;
+    }
+  } catch {
+    /* 讀不到就維持內建海報 */
+  }
 }
 
 function setBanner(text: string, kind: 'idle' | 'ok' | 'warn' | 'err'): void {
@@ -179,6 +197,7 @@ async function connect(): Promise<void> {
   });
   // 名稱由主行程決定（固定為本機 IP），這裡只是把結果顯示回唯讀欄位。
   els.studentName.value = config.studentName;
+  void refreshIdleImage();
   // 開機初始畫面：教師端可遠端更換（存 config，每次開機顯示）
   if (config.idleTitle || config.idleText) {
     setIdle(config.idleTitle || '教室直播', config.idleText || '尚未連線到教師機');
@@ -196,6 +215,7 @@ async function connect(): Promise<void> {
     onStatus: (status, detail) => {
       switch (status) {
         case 'connected':
+          everConnected = true;
           setBanner('已連線，等待教師廣播…', 'ok');
           setIdle('教室直播', '已連線，等待教師廣播…');
 
@@ -218,8 +238,56 @@ async function connect(): Promise<void> {
 
   client.connect();
   els.btnConnect.textContent = '斷線';
+
+  // 初次進入連不上：10 秒後仍未連上且從未連成過 → 自動搜尋區網伺服器
+  const thisClient = client;
+  setTimeout(() => {
+    if (client === thisClient && !everConnected) {
+      void runDiscover(true);
+    }
+  }, 10_000);
   els.bannerClass.textContent = config.classId;
   log('info', `連線到 ${signalUrl}，班級 ${config.classId}`);
+}
+
+/**
+ * UDP 廣播搜尋區網中的教室伺服器。
+ * 結果以按鈕清單呈現；點選即填入位址、儲存設定並重新連線。
+ */
+async function runDiscover(auto: boolean) {
+  if (client) return;
+  els.discoverResults.replaceChildren();
+  els.discoverResults.hidden = false;
+  setBanner(auto ? '連不上伺服器，搜尋區網…' : '搜尋區網伺服器…', 'warn');
+  let found: { wsUrl: string }[] = [];
+  try {
+    found = await window.studentApi.discoverServers(2000);
+  } catch (error) {
+    log('warn', `搜尋失敗：${error instanceof Error ? error.message : String(error)}`);
+  }
+  if (found.length === 0) {
+    setBanner(auto ? '區網找不到伺服器' : '找不到伺服器', 'err');
+    log('warn', '區網搜尋找不到任何伺服器；請確認教師機/伺服器已啟動且同一網段。');
+    return;
+  }
+  for (const s of found) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'btn ghost discover-btn';
+    btn.textContent = `✓ 使用 ${s.wsUrl}（儲存並連線）`;
+    btn.addEventListener('click', async () => {
+      await window.studentApi.saveConfig({ serverUrl: s.wsUrl });
+      els.serverUrl.value = s.wsUrl;
+      log('info', `已儲存伺服器位址：${s.wsUrl}，重新連線…`);
+      els.discoverResults.replaceChildren();
+      els.discoverResults.hidden = true;
+      if (client) disconnect();
+      void connect();
+    });
+    els.discoverResults.append(btn);
+  }
+  setBanner(`找到 ${found.length} 台伺服器，請選擇`, 'warn');
+  log('info', '區網搜尋找到 ' + found.length + ' 台伺服器，請在清單點選要使用的位址。');
 }
 
 function disconnect(): void {
@@ -962,11 +1030,17 @@ async function handleControl(raw: unknown): Promise<void> {
       log('info', `老師已更新待機畫面：${title || '（無標題）'}`);
       void window.studentApi.saveConfig({ idleTitle: title, idleText: text });
       // 未廣播時才立即套用顯示（廣播中套了也看不見）
+      void refreshIdleImage();
       if (!broadcastActive) {
         setIdle(title || '教室直播', text || '已連線，等待教師廣播…');
       }
       break;
     }
+
+    case 'idle-image-applied':
+      // 老師送來的新待機圖已落地：重取並套用
+      void refreshIdleImage();
+      break;
 
     case 'watch': {
       // 教師按「👁 監看」：本機螢幕以低頻 JPEG 回傳給教師（3 秒一張等級）。
@@ -1207,6 +1281,8 @@ function bindEvents(): void {
   }
 
   // 收檔資料夾：原生的資料夾選擇對話框 → 存進個人層設定
+  // 區網搜尋伺服器（手動）
+  els.btnDiscover.addEventListener('click', () => void runDiscover(false));
   els.btnChooseDir.addEventListener('click', async () => {
     const dir = await window.studentApi.chooseSaveDir();
     if (!dir) return; // 使用者取消

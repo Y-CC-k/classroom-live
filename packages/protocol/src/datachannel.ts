@@ -48,6 +48,8 @@ export type CtlMessage =
    * title 最長 32 字、text 最長 200 字（學生端再截斷一次保險）。
    */
   | { t: 'idle-screen'; title: string; text: string }
+  /** 待機圖已在學生機落地：通知 renderer 重取並套用（不動文字欄位） */
+  | { t: 'idle-image-applied' }
   /**
    * 教師開始／停止廣播。
    * `mode` 說明畫面走哪條路：video = 視訊軌；image = 圖片通道逐張。

@@ -37,6 +37,10 @@ export const IPC = {
   requestShutdown: 'student:request-shutdown',
   /** 熱更新：解壓最近收到的升級包覆蓋 resources\app 後重啟 */
   applyUpdate: 'student:apply-update',
+  /** 讀取自訂待機底圖（回傳 data URL；未設定回 null） */
+  getIdleImage: 'student:get-idle-image',
+  /** UDP 廣播搜尋區網中的教室伺服器 */
+  discoverServers: 'student:discover-servers',
   /**
    * 教師端「執行程式」（ctl exec）：啟動學生機上的指定檔案。
    * .bat/.cmd 以 cmd /c 開主控台視窗；其他直接啟動。
@@ -95,6 +99,8 @@ export interface StudentConfig {
    */
   idleTitle?: string;
   idleText?: string;
+  /** 自訂待機底圖路徑（userData 下的 idle-image.*）；空 = 用 App 內建守則海報 */
+  idleImagePath?: string;
   /**
    * 教師機傳送檔案的落地資料夾。
    * 部署層（安裝目錄 config.json 的 fileSaveDir）會在「值變更時」重新壓過，
@@ -196,6 +202,10 @@ export interface StudentApi {
   requestShutdown(delaySec: number): Promise<boolean>;
   /** 熱更新：套用最近收到的升級包（30 分鐘內、.zip、夠大＝有效），套用後本機會重啟 */
   applyUpdate(): Promise<{ ok: boolean; reason?: string }>;
+  /** 讀取自訂待機底圖（data URL）；未設定回 null */
+  getIdleImage(): Promise<string | null>;
+  /** UDP 廣播搜尋區網中的教室伺服器；回傳找到的 ws 位址清單 */
+  discoverServers(timeoutMs?: number): Promise<{ wsUrl: string }[]>;
   /**
    * 教師端「執行程式」（ctl exec）：啟動學生機上的指定檔案。
    * .bat/.cmd 以 cmd /c 開主控台視窗；其他直接啟動（bundle 以上全部使用者權限）。

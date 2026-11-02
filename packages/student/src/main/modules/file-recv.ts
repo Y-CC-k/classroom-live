@@ -162,6 +162,19 @@ export function registerFileIpc(): void {
     saveDir: pickSaveDir() ?? getConfig().fileSaveDir,
   }));
 
+  ipcMain.handle(IPC.getIdleImage, async (): Promise<string | null> => {
+    const imagePath = getConfig().idleImagePath;
+    if (!imagePath || !fs.existsSync(imagePath)) return null;
+    try {
+      const ext = path.extname(imagePath).toLowerCase();
+      const mime = ext === '.png' ? 'image/png' : ext === '.webp' ? 'image/webp' : 'image/jpeg';
+      const data = await fs.promises.readFile(imagePath);
+      return `data:${mime};base64,${data.toString('base64')}`;
+    } catch {
+      return null;
+    }
+  });
+
   ipcMain.handle(IPC.chooseSaveDir, async () => {
     const window = getMainWindow();
     if (!window || window.isDestroyed()) return null;
@@ -271,6 +284,25 @@ export function registerFileIpc(): void {
     }
 
     lastStoredFile = { path: transfer.target, at: Date.now() };
+
+    // 待機圖：「待機畫面.xxx」的圖片檔 → 複製到 userData 並記錄路徑，
+    // renderer 待機時顯示（取代 App 內建守則海報）。
+    if (/^待機畫面\.(png|jpe?g|webp)$/i.test(transfer.name)) {
+      try {
+        const ext = path.extname(transfer.target).toLowerCase();
+        const dest = path.join(app.getPath('userData'), `idle-image${ext}`);
+        // 清掉不同副檔名的舊圖，避免殘留
+        for (const e of ['.png', '.jpg', '.jpeg', '.webp']) {
+          const oldPath = path.join(app.getPath('userData'), `idle-image${e}`);
+          if (oldPath !== dest && fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+        }
+        fs.copyFileSync(transfer.target, dest);
+        saveConfig({ idleImagePath: dest });
+        console.log(`[idle-image] 待機圖已更新：${dest}`);
+      } catch (error) {
+        console.error('[idle-image] 待機圖儲存失敗：', error);
+      }
+    }
     return { ok: true, path: transfer.target };
   });
 }

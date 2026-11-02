@@ -494,3 +494,16 @@ kbd {
 .log li.error {
   color: var(--danger);
 }
+
+/* ───────────── 區網搜尋伺服器 ───────────── */
+.discover-results {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 6px 0;
+}
+.discover-btn {
+  text-align: left;
+  font-family: var(--mono);
+  font-size: 12px;
+}

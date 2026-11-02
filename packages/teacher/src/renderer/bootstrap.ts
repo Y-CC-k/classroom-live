@@ -157,6 +157,9 @@ const els = {
   idleTitleInput: $<HTMLInputElement>('idle-title'),
   idleTextInput: $<HTMLInputElement>('idle-text'),
   btnIdleScreen: $<HTMLButtonElement>('btn-idle-screen'),
+  idleImageInput: $<HTMLInputElement>('idle-image-input'),
+  btnIdleImage: $<HTMLButtonElement>('btn-idle-image'),
+  idleImageLabel: $<HTMLSpanElement>('idle-image-label'),
 
   // 自適應畫質
   adaptiveQuality: $<HTMLInputElement>('adaptive-quality'),
@@ -1488,6 +1491,24 @@ function bindEvents(): void {
       count > 0 ? 'info' : 'warn',
       `待機畫面已送出給 ${count} 台學生機（未廣播的台立即顯示；全部存檔，下次開機也顯示）。`
     );
+  });
+
+  // 更換學生機待機底圖：選圖 → 走檔案通道送出（固定檔名「待機畫面.xxx」）
+  els.btnIdleImage.addEventListener('click', () => els.idleImageInput.click());
+  els.idleImageInput.addEventListener('change', () => {
+    const file = els.idleImageInput.files?.[0];
+    if (!file) return;
+    if (!session?.isConnected) {
+      log('warn', '尚未連線；請先按「連線」再更換待機圖。');
+      return;
+    }
+    const count = session.sendIdleImageAll(file);
+    els.idleImageLabel.textContent = `${file.name} → ${count} 台`;
+    log(
+      count > 0 ? 'info' : 'warn',
+      `待機圖已開始送給 ${count} 台；各台落地後自動套用（取代內建守則海報）。`
+    );
+    els.idleImageInput.value = '';
   });
 
   // 自適應畫質開關

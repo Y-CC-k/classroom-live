@@ -377,6 +377,15 @@ export class TeacherSession {
    * 更新所有已連線學生機的待機（開機初始）畫面文字。
    * 回傳已送出的台數（ctl 通道未開的台送不到）。
    */
+  /**
+   * 更換所有已連線學生機的待機底圖。
+   * 圖片走檔案通道（固定檔名「待機畫面.xxx」），學生機落地後自動套用。
+   * 回傳已開始送出的台數。
+   */
+  sendIdleImageAll(file: File): number {
+    return this.fileTransferManager.sendIdleImage(file);
+  }
+
   setIdleScreenAll(title: string, text: string): number {
     let sent = 0;
     for (const [peerId, link] of this.broadcastManager.getLinks()) {

@@ -528,6 +528,11 @@ export class BroadcastManager {
             'info',
             `${link.state.info.name} 已收到 ${parsed.name}${parsed.path ? `，存到 ${parsed.path}` : ''}`
           );
+          // 待機圖落地：通知學生端重取並套用（檔名固定「待機畫面.xxx」）
+          if (/^待機畫面\./i.test(parsed.name ?? '')) {
+            this.sendCtl(peerId, { t: 'idle-image-applied' });
+            this.options.onLog('info', `${link.state.info.name} 待機圖已套用`);
+          }
           // 熱更新：若收到的是升級包（檔名含「升級包」的 .zip），通知學生機套用並重啟
           const isUpgradePkg = parsed.name.toLowerCase().endsWith('.zip') && parsed.name.includes('升級包');
           if (isUpgradePkg) {

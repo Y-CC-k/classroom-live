@@ -1,4 +1,6 @@
 import http from 'node:http';
+import { createSocket } from 'node:dgram';
+import os from 'node:os';
 import type { AddressInfo } from 'node:net';
 
 import {
@@ -562,6 +564,41 @@ function shutdown(signal: string): void {
 
 process.on('SIGINT', () => shutdown('SIGINT'));
 process.on('SIGTERM', () => shutdown('SIGTERM'));
+
+// ── UDP 區網探索：學生機連不上設定位址時，廣播尋找本伺服器 ──
+// 與 TCP 同 port 號（UDP/TCP 可並存）。學生機廣播 { t: 'classroom-discover' }，
+// 本伺服器以區網私有 IPv4 回覆 { t: 'classroom-announce', wsUrl }。
+function privateIpv4(): string | null {
+  for (const infos of Object.values(os.networkInterfaces())) {
+    for (const info of infos ?? []) {
+      if (info.family !== 'IPv4' || info.internal) continue;
+      const parts = info.address.split('.').map(n => Number.parseInt(n, 10));
+      const a = parts[0] ?? 0;
+      const b = parts[1] ?? 0;
+      if (a === 10 || (a === 192 && b === 168) || (a === 172 && b >= 16 && b <= 31)) {
+        return info.address;
+      }
+    }
+  }
+  return null;
+}
+
+const discoverUdp = createSocket({ type: 'udp4', reuseAddr: true });
+discoverUdp.on('error', () => {
+  /* UDP 起不來不影響 TCP 服務（例如 port 被別的 UDP 佔用） */
+});
+discoverUdp.on('message', (msg, rinfo) => {
+  try {
+    const parsed = JSON.parse(String(msg)) as { t?: string };
+    if (parsed?.t !== 'classroom-discover') return;
+    const ip = privateIpv4();
+    const wsUrl = `ws://${ip ?? '127.0.0.1'}:${config.port}`;
+    discoverUdp.send(JSON.stringify({ t: 'classroom-announce', wsUrl }), rinfo.port, rinfo.address);
+  } catch {
+    /* 非 JSON 或壞封包忽略 */
+  }
+});
+discoverUdp.bind(config.port, () => discoverUdp.setBroadcast(true));
 
 httpServer.listen(config.port, config.host, () => {
   const address = httpServer.address() as AddressInfo;

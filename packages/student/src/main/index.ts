@@ -4,6 +4,7 @@ import { ipcMain } from 'electron';
 import { initializeApp } from './modules/window.js';
 import { registerFileIpc } from './modules/file-recv.js';
 import { registerUpdateIpc } from './modules/update.js';
+import { registerDiscoverIpc } from './modules/discover-ipc.js';
 import { registerSystemCommandsIpc } from './modules/system-commands.js';
 import { uwfAction, type UwfAction } from './uwf.js';
 import { IPC } from '../shared/ipc.js';
@@ -12,6 +13,7 @@ import { IPC } from '../shared/ipc.js';
 function registerAllIpc(): void {
   registerFileIpc();
   registerUpdateIpc();
+  registerDiscoverIpc();
   registerSystemCommandsIpc();
 
   // UWF 遙控（直接在這裡註冊，不拆出模組）

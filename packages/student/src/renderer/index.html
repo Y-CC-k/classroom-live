@@ -54,6 +54,10 @@
       <h2>學生機設定</h2>
 
       <label>教師機／伺服器位址<input id="server-url" type="text" spellcheck="false" /></label>
+      <div class="row">
+        <button id="btn-discover" class="btn ghost">🔍 搜尋區網伺服器</button>
+      </div>
+      <div id="discover-results" class="discover-results" hidden></div>
       <label>班級代碼<input id="class-id" type="text" spellcheck="false" maxlength="16" placeholder="123-456" /></label>
       <label>本機名稱（固定為本機 IP，不可修改）<input id="student-name" type="text" maxlength="32" readonly /></label>
       <label>收檔資料夾（教師機送檔落地處）</label>
