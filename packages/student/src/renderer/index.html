@@ -14,6 +14,8 @@
       <video id="broadcast" class="broadcast" autoplay muted playsinline hidden></video>
       <!-- 圖片廣播模式：教師機逐張送 JPEG，這裡負責顯示（樣式與 video 共用 .broadcast） -->
       <img id="broadcast-img" class="broadcast" alt="" hidden />
+      <!-- 白板筆覆蓋層：教師端標註即時重現（座標正規化，按顯示區等比換算） -->
+      <canvas id="pen-canvas" class="pen-overlay" hidden></canvas>
 
       <div id="idle" class="idle">
         <!-- 未開始廣播時的底圖：多媒體電腦室使用守則海報（隨 App 打包） -->

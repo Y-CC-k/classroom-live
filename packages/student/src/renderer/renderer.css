@@ -507,3 +507,17 @@ kbd {
   font-family: var(--mono);
   font-size: 12px;
 }
+
+/* ───────────── 白板筆覆蓋層（教師端標註重現） ───────────── */
+.pen-overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 5;
+  pointer-events: none;
+}
+
+.pen-overlay[hidden] {
+  display: none;
+}

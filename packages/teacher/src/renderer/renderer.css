@@ -698,3 +698,48 @@ select:disabled {
   max-height: calc(88vh - 64px);
   object-fit: contain;
 }
+
+/* ───────────── 白板筆 ───────────── */
+
+/* 來源預覽容器：canvas 絕對定位蓋在預覽上 */
+.source-wrap {
+  position: relative;
+}
+
+.pen-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 5;
+  touch-action: none;
+  cursor: crosshair;
+}
+
+.pen-canvas[hidden] {
+  display: none;
+}
+
+/* 白板工具列：色點 + 粗細 + 復原/清除 */
+.whitebar {
+  align-items: center;
+}
+
+.pen-color {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid #55617a;
+  cursor: pointer;
+  padding: 0;
+  flex: none;
+}
+
+.pen-color.active {
+  border-color: #fff;
+  box-shadow: 0 0 6px rgba(255, 255, 255, 0.7);
+}
+
+#pen-width {
+  width: 64px;
+}

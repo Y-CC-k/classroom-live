@@ -44,6 +44,7 @@ const $ = <T extends HTMLElement>(id: string): T => {
 const els = {
   broadcast: $<HTMLVideoElement>('broadcast'),
   broadcastImg: $<HTMLImageElement>('broadcast-img'),
+  penCanvas: $<HTMLCanvasElement>('pen-canvas'),
   idle: $<HTMLDivElement>('idle'),
   bannerDot: $<HTMLSpanElement>('banner-dot'),
   bannerText: $<HTMLSpanElement>('banner-text'),
@@ -536,6 +537,9 @@ function showBroadcast(on: boolean, mode: BroadcastMode = broadcastMode): void {
     // 畫面清乾淨：圖片模式要撤掉最後一張 JPEG（video 保留 srcObject），
     // 學生不能停下廣播後還看著上張圖以為老師還在播。
     els.broadcastImg.removeAttribute('src');
+    // 廣播清屏：白板筆跡一併清掉
+    penClear();
+    els.penCanvas.hidden = true;
     // 分清楚兩種「沒有畫面」：
     //   1. 上課中老師按了停止 → 要講清楚是「停止了」
     //   2. 一連上就還沒開始廣播 → 只是還沒開始，講「已停止」會讓學生一頭霧水
@@ -884,6 +888,92 @@ function stopWatch(reason: 'teacher-stopped' | 'line-lost' | 'restart'): void {
   if (reason === 'line-lost') log('warn', '控制通道已斷線，停止監看。');
 }
 
+// ───────────────────────────── 白板筆（教師端標註同步） ─────────────────────────────
+
+interface PenStroke {
+  color: string;
+  width: number;
+  points: { x: number; y: number }[];
+}
+
+let penStrokes: PenStroke[] = [];
+let penCurrent: PenStroke | null = null;
+let penLast: { x: number; y: number } = { x: 0, y: 0 };
+
+function penCtx(): CanvasRenderingContext2D | null {
+  return els.penCanvas.getContext('2d');
+}
+
+/** canvas 尺寸跟隨容器；變了就重繪全部筆跡 */
+function penFit(): void {
+  const rect = els.penCanvas.getBoundingClientRect();
+  const w = Math.max(1, Math.round(rect.width * (window.devicePixelRatio || 1)));
+  const h = Math.max(1, Math.round(rect.height * (window.devicePixelRatio || 1)));
+  if (els.penCanvas.width !== w || els.penCanvas.height !== h) {
+    els.penCanvas.width = w;
+    els.penCanvas.height = h;
+    penRedraw();
+  }
+}
+
+/** object-fit: contain 的實際顯示區（寬高與偏移）；來源尺寸取自 video/img */
+function penBox(): { drawW: number; drawH: number; ox: number; oy: number } {
+  const rect = els.penCanvas.getBoundingClientRect();
+  const v = els.broadcast.hidden ? null : els.broadcast;
+  const img = els.broadcastImg.hidden ? null : els.broadcastImg;
+  let sw = 0;
+  let sh = 0;
+  if (v && v.videoWidth > 0) {
+    sw = v.videoWidth;
+    sh = v.videoHeight;
+  } else if (img && img.naturalWidth > 0) {
+    sw = img.naturalWidth;
+    sh = img.naturalHeight;
+  }
+  const srcAr = sw > 0 && sh > 0 ? sw / sh : 16 / 9;
+  const boxAr = rect.width / Math.max(1, rect.height);
+  if (srcAr > boxAr) {
+    const drawH = rect.width / srcAr;
+    return { drawW: rect.width, drawH, ox: 0, oy: (rect.height - drawH) / 2 };
+  }
+  const drawW = rect.height * srcAr;
+  return { drawW, drawH: rect.height, ox: (rect.width - drawW) / 2, oy: 0 };
+}
+
+function penSegment(from: { x: number; y: number }, to: { x: number; y: number }, color: string, width: number): void {
+  const ctx = penCtx();
+  if (!ctx) return;
+  penFit();
+  const scale = window.devicePixelRatio || 1;
+  const { drawW, drawH, ox, oy } = penBox();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = Math.max(1, width * scale);
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.beginPath();
+  ctx.moveTo((ox + from.x * drawW) * scale, (oy + from.y * drawH) * scale);
+  ctx.lineTo((ox + to.x * drawW) * scale, (oy + to.y * drawH) * scale);
+  ctx.stroke();
+}
+
+function penRedraw(): void {
+  const ctx = penCtx();
+  if (!ctx) return;
+  ctx.clearRect(0, 0, els.penCanvas.width, els.penCanvas.height);
+  for (const stroke of penStrokes) {
+    for (let i = 1; i < stroke.points.length; i++) {
+      penSegment(stroke.points[i - 1]!, stroke.points[i]!, stroke.color, stroke.width);
+    }
+    if (stroke.points.length === 1) penSegment(stroke.points[0]!, stroke.points[0]!, stroke.color, stroke.width);
+  }
+}
+
+function penClear(): void {
+  penStrokes = [];
+  penCurrent = null;
+  penCtx()?.clearRect(0, 0, els.penCanvas.width, els.penCanvas.height);
+}
+
 function sendEvt(message: EvtMessage): void {
   const data = JSON.stringify(message);
   if (!evt || evt.readyState !== 'open') {
@@ -1036,6 +1126,42 @@ async function handleControl(raw: unknown): Promise<void> {
       }
       break;
     }
+
+    case 'pen': {
+      // 教師白板筆：正規化座標按顯示區等比換算後繪製
+      const pt = {
+        x: Math.min(1, Math.max(0, Number(message.x) || 0)),
+        y: Math.min(1, Math.max(0, Number(message.y) || 0)),
+      };
+      const color = String(message.color ?? '#ff3b30');
+      const width = Number(message.width) || 6;
+      if (message.op === 'down') {
+        els.penCanvas.hidden = false;
+        penCurrent = { color, width, points: [pt] };
+        penLast = pt;
+        penSegment(pt, pt, color, width);
+      } else if (message.op === 'move' && penCurrent) {
+        penSegment(penLast, pt, penCurrent.color, penCurrent.width);
+        penCurrent.points.push(pt);
+        penLast = pt;
+      } else if (message.op === 'up') {
+        if (penCurrent) {
+          penCurrent.points.push(pt);
+          penStrokes.push(penCurrent);
+          penCurrent = null;
+        }
+      }
+      break;
+    }
+
+    case 'pen-clear':
+      penClear();
+      break;
+
+    case 'pen-undo':
+      penStrokes.pop();
+      penRedraw();
+      break;
 
     case 'idle-image-applied':
       // 老師送來的新待機圖已落地：重取並套用

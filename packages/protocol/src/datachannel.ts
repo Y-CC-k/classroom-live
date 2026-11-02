@@ -51,6 +51,17 @@ export type CtlMessage =
   /** 待機圖已在學生機落地：通知 renderer 重取並套用（不動文字欄位） */
   | { t: 'idle-image-applied' }
   /**
+   * 白板筆：教師在擷取畫面上標註，學生端在廣播畫面覆蓋層重現。
+   * 座標 x/y 正規化到 0..1（相對教師擷取畫面，與滑鼠控制同一套語義），
+   * 學生端按自己的顯示區域等比換算（處理 object-fit 的 letterbox）。
+   * 每則 move 都帶 color/width（冗餘但無狀態，丟包不影響後續筆畫）。
+   */
+  | { t: 'pen'; op: 'down' | 'move' | 'up'; color: string; width: number; x: number; y: number }
+  /** 清除全部白板筆跡（學生與教師本地同步清空） */
+  | { t: 'pen-clear' }
+  /** 復原最後一筆（教師端維護筆跡歷史，學生端 pop 後重繪） */
+  | { t: 'pen-undo' }
+  /**
    * 教師開始／停止廣播。
    * `mode` 說明畫面走哪條路：video = 視訊軌；image = 圖片通道逐張。
    * 停止時學生端要立刻「清屏」——只靠 `replaceTrack(null)` 的話，

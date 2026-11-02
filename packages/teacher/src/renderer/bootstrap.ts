@@ -5,6 +5,7 @@ import { QUALITY_PRESETS, qualityPresetDef } from '../shared/ipc.js';
 import { createMirrorFixer, type MirrorFixer } from './mirror.js';
 import { TeacherSession, describe } from './webrtc/index.js';
 import { MonitorWall } from './ui/monitor-wall.js';
+import { Whiteboard, PEN_COLORS } from './ui/whiteboard.js';
 
 /**
  * 教師機 renderer：負責所有 UI 與 WebRTC。
@@ -46,6 +47,8 @@ let previewToken = 0;
 let monitorWall: MonitorWall | null = null;
 /** 教師機自身版本（boot() 時從 appInfo 取得；學生機連線時比較用） */
 let teacherAppVersion = '';
+/** 白板筆（廣播中在來源預覽上標註，筆跡同步學生機） */
+let whiteboard: Whiteboard | null = null;
 
 /** 釋放已經被換掉的鏡像修正器（務必在 `setLocalStream()` 之後呼叫）。 */
 function disposeStaleMirrors(): void {
@@ -158,6 +161,11 @@ const els = {
   idleTextInput: $<HTMLInputElement>('idle-text'),
   btnIdleScreen: $<HTMLButtonElement>('btn-idle-screen'),
   idleImageInput: $<HTMLInputElement>('idle-image-input'),
+  penCanvas: $<HTMLCanvasElement>('pen-canvas'),
+  whitebar: $<HTMLDivElement>('whitebar'),
+  penWidth: $<HTMLSelectElement>('pen-width'),
+  penUndo: $<HTMLButtonElement>('pen-undo'),
+  penClear: $<HTMLButtonElement>('pen-clear'),
   btnIdleImage: $<HTMLButtonElement>('btn-idle-image'),
   idleImageLabel: $<HTMLSpanElement>('idle-image-label'),
 
@@ -556,6 +564,9 @@ async function startBroadcast(): Promise<void> {
 
     const track = stream.getVideoTracks()[0];
     if (source.kind === 'camera') syncCameraLabel(source, track?.label);
+    // 白板筆可用（蓋在來源預覽上，筆跡同步學生機）
+    els.whitebar.hidden = false;
+    whiteboard?.setEnabled(true);
     log('info', `已開始廣播「${source.name}」（${await measureStreamSize(stream)}）`);
     els.btnStart.disabled = true;
     els.btnStop.disabled = false;
@@ -580,6 +591,9 @@ async function stopBroadcast(): Promise<void> {
   disposeStaleMirrors();
   els.btnStart.disabled = false;
   els.btnStop.disabled = true;
+  // 白板筆跟著廣播收：本地與學生端筆跡一併清除
+  els.whitebar.hidden = true;
+  whiteboard?.setEnabled(false);
   log('info', '已停止廣播');
   renderStudents();
   // 停止後若選的是攝影機，重新開一條預覽串流。
@@ -931,6 +945,24 @@ async function connect(): Promise<void> {
     if (checkedPeers.size > 0) return [...checkedPeers];
     return activeSession.students().map(s => s.info.id);
   });
+
+  // 白板筆：擷取畫面尺寸來源（video 或 img 預覽）
+  whiteboard = new Whiteboard(
+    els.penCanvas,
+    msg => {
+      if (msg.t === 'pen') session?.sendPen(msg.op, msg.color, msg.width, msg.x, msg.y);
+      else if (msg.t === 'pen-clear') session?.penClearAll();
+      else session?.penUndoAll();
+    },
+    () => {
+      const v = els.sourceVideo;
+      if (!v.hidden && v.videoWidth > 0) return { w: v.videoWidth, h: v.videoHeight };
+      const img = els.sourcePreview;
+      if (img.naturalWidth > 0) return { w: img.naturalWidth, h: img.naturalHeight };
+      return { w: 16, h: 9 };
+    }
+  );
+  els.penCanvas.hidden = false;
 
   // 應用自適應畫質設定
   session.setAdaptiveQualityEnabled(els.adaptiveQuality.checked);
@@ -1504,12 +1536,21 @@ function bindEvents(): void {
     }
     const count = session.sendIdleImageAll(file);
     els.idleImageLabel.textContent = `${file.name} → ${count} 台`;
-    log(
-      count > 0 ? 'info' : 'warn',
-      `待機圖已開始送給 ${count} 台；各台落地後自動套用（取代內建守則海報）。`
-    );
+    log(count > 0 ? 'info' : 'warn', `待機圖已開始送給 ${count} 台；各台落地後自動套用（取代內建守則海報）。`);
     els.idleImageInput.value = '';
   });
+
+  // ── 白板筆工具列 ──
+  document.querySelectorAll<HTMLButtonElement>('.pen-color').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll<HTMLButtonElement>('.pen-color').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      whiteboard?.setColor(btn.dataset.color ?? PEN_COLORS[0]);
+    });
+  });
+  els.penWidth.addEventListener('change', () => whiteboard?.setLineWidth(Number(els.penWidth.value) || 6));
+  els.penUndo.addEventListener('click', () => whiteboard?.undo(true));
+  els.penClear.addEventListener('click', () => whiteboard?.clear(true));
 
   // 自適應畫質開關
   els.adaptiveQuality.addEventListener('change', () => {
