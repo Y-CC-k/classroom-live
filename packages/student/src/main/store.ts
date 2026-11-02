@@ -284,5 +284,11 @@ function sanitize(config: StudentConfig): StudentConfig {
     fileSaveDir: config.fileSaveDir.trim(),
     serverUrlLocked: false,
     sfuServerUrl: config.sfuServerUrl.trim(),
+    // 學生自輸姓名與待機畫面（教師端遠端更換）：白名單需含這些欄位，
+    // 否則 sanitize 重建時會整組丟掉（idle-screen 功能將無法持久化）。
+    displayName: (config.displayName ?? '').trim().slice(0, 32),
+    idleTitle: (config.idleTitle ?? '').trim().slice(0, 32),
+    idleText: (config.idleText ?? '').trim().slice(0, 200),
+    idleImagePath: config.idleImagePath ?? '',
   };
 }

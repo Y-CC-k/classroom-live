@@ -102,6 +102,11 @@ export interface StudentConfig {
   /** 自訂待機底圖路徑（userData 下的 idle-image.*）；空 = 用 App 內建守則海報 */
   idleImagePath?: string;
   /**
+   * 學生自輸的姓名／代號（待機畫面輸入框）。
+   * 空字串 = 教師端以機器名（IP／電腦名）顯示。
+   */
+  displayName?: string;
+  /**
    * 教師機傳送檔案的落地資料夾。
    * 部署層（安裝目錄 config.json 的 fileSaveDir）會在「值變更時」重新壓過，
    * 其餘時間學生（或維護者）可以在設定面板自行改；未設定時預設 D:\。
