@@ -367,6 +367,11 @@ export class TeacherSession {
   getWatchingPeerIds(): string[] {
     return this.monitorManager.getWatchingPeerIds();
   }
+
+  /** 取得 ctl 通道已連線（可監看）的學生機 ID 列表。 */
+  getConnectedStudentIds(): string[] {
+    return this.monitorManager.getConnectedPeerIds();
+  }
 }
 
 export function describe(error: unknown): string {

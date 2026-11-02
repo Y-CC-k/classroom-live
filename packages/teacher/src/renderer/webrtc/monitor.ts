@@ -85,6 +85,15 @@ export class MonitorManager {
     this.watchFrames.clear();
   }
 
+  /** 取得 ctl 通道已連線（可監看）的學生機 ID 列表。離線機建了格子也不會有影像。 */
+  getConnectedPeerIds(): string[] {
+    const result: string[] = [];
+    for (const [peerId, link] of this.links) {
+      if (link.ctl?.readyState === 'open') result.push(peerId);
+    }
+    return result;
+  }
+
   /** 取得目前正在監看的 peerId 列表（根據 watchFrames 組裝狀態判斷）。 */
   getWatchingPeerIds(): string[] {
     return [...this.watchFrames.keys()];

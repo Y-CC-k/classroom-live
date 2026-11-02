@@ -113,6 +113,8 @@ class WallCell {
   private readonly nameEl: HTMLElement;
   private readonly metaEl: HTMLElement;
   private currentUrl: string | null = null;
+  /** 最後一次收到幀的時間（0 = 從未收到）；逾時未更新視為離線 */
+  lastFrameAt = 0;
 
   constructor(peerId: string, studentName: string) {
     this.peerId = peerId;
@@ -146,6 +148,7 @@ class WallCell {
       URL.revokeObjectURL(this.currentUrl);
     }
     this.currentUrl = frame.url;
+    this.lastFrameAt = Date.now();
     this.img.src = frame.url;
     this.element.classList.remove('inactive');
     this.element.classList.add('active');
@@ -164,6 +167,18 @@ class WallCell {
     }
   }
 
+  /** 標記為離線（逾時未收到幀）：灰底＋明確文字，不再像是「應該有影像」 */
+  markOffline(): void {
+    if (this.currentUrl) {
+      URL.revokeObjectURL(this.currentUrl);
+      this.currentUrl = null;
+    }
+    this.img.src = '';
+    this.element.classList.remove('active');
+    this.element.classList.add('inactive');
+    this.metaEl.textContent = '訊號中斷';
+  }
+
   /** 移除格子 */
   remove(): void {
     this.setIdle();
@@ -178,6 +193,8 @@ export class MonitorWall {
   private readonly cells = new Map<string, WallCell>();
   private visible = false;
   private readonly toggleBtn: HTMLButtonElement;
+  /** 幀逾時檢查：每 10 秒掃一次，20 秒沒收到幀的格子標記為離線 */
+  private frameCheckTimer: ReturnType<typeof setInterval> | null = null;
   /** 回傳要監看的學生 ID 列表（勾選的台優先，否則全部已連線學生機） */
   private readonly getWatchTargets: () => string[];
 
@@ -202,6 +219,10 @@ export class MonitorWall {
 
     // 綁定開關按鈕
     this.toggleBtn.addEventListener('click', () => this.toggle());
+
+
+    // 幀逾時檢查（監控牆開啟期間持續運作，學生機離線的格子會標「訊號中斷」）
+    this.frameCheckTimer = setInterval(() => this.checkFrameTimeouts(), 10_000);
 
     // 監看幀回調：由 session 傳入
     // 注意：session 的 onWatchFrame 已在 bootstrap 設定，
@@ -237,7 +258,9 @@ export class MonitorWall {
   /** 隱藏監控牆並停止所有監看 */
   hide(): void {
     this.session.unwatchAllStudents();
-    this.cells.forEach(cell => cell.setIdle());
+    // 清空所有格子：不留殘留舊資料，下次開啟乾淨重建
+    this.cells.forEach(cell => cell.remove());
+    this.cells.clear();
     this.container.hidden = true;
     this.container.classList.remove('visible');
     this.visible = false;
@@ -248,28 +271,48 @@ export class MonitorWall {
 
   /** 設定監看名單（會立即開始監看這些學生） */
   setStudents(peerIds: string[]): void {
-    // 先停止所有舊的監看
+    // 先停止所有舊的監看，並清空格子與容器（不留殘留舊資料）
     this.session.unwatchAllStudents();
     this.cells.forEach(cell => cell.remove());
     this.cells.clear();
+    this.container.replaceChildren();
+
+    // 只為 ctl 通道已連線的台建立格子：
+    // 離線機建了格子也不會有影像，只會累積出一堆空格。
+    const connected = new Set(this.session.getConnectedStudentIds());
+    const watchable = peerIds.filter(id => connected.has(id));
+    const skipped = peerIds.length - watchable.length;
+    if (skipped > 0) {
+      this.log('warn', `${skipped} 台控制通道未連線，已從監控牆排除。`);
+    }
 
     // 建立新格子並開始監看
     const students = this.session.students();
-    for (const peerId of peerIds) {
+    for (const peerId of watchable) {
       const name = students.find(s => s.info.id === peerId)?.info.name ?? peerId;
       const cell = new WallCell(peerId, name);
       this.cells.set(peerId, cell);
       this.container.appendChild(cell.elementRef);
     }
 
-    // 開始監看（間隔 3000ms）
-    if (peerIds.length > 0) {
-      // 5 秒一張：29 台同時監看時總下行約 1.5 Mbps（3 秒時為 3+ Mbps），
+    // 5 秒一張：29 台同時監看時總下行約 1.5 Mbps（3 秒時為 3+ Mbps），
     // 監控牆用途（確認學生在不在/做什麼）不需要更快。
-    this.session.watchStudents(peerIds, 5000);
+    if (watchable.length > 0) {
+      this.session.watchStudents(watchable, 5000);
     }
 
     this.renderGrid();
+  }
+
+  /** 逾時檢查：20 秒沒收到幀的格子標記為「訊號中斷」 */
+  private checkFrameTimeouts(): void {
+    if (!this.visible) return;
+    const now = Date.now();
+    for (const cell of this.cells.values()) {
+      if (cell.lastFrameAt > 0 && now - cell.lastFrameAt > 20_000) {
+        cell.markOffline();
+      }
+    }
   }
 
   /** 根據 cells 數量調整 grid 欄數 */
