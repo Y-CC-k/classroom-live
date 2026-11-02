@@ -52,8 +52,6 @@ const els = {
   idleTitle: $<HTMLHeadingElement>('idle-title'),
   idleText: $<HTMLParagraphElement>('idle-text'),
   idleRules: $<HTMLImageElement>('idle-rules'),
-  displayNameInput: $<HTMLInputElement>('display-name'),
-  btnDisplayName: $<HTMLButtonElement>('btn-display-name'),
   btnDiscover: $<HTMLButtonElement>('btn-discover'),
   discoverResults: $<HTMLDivElement>('discover-results'),
   boardLayer: $<HTMLDivElement>('board-layer'),
@@ -171,8 +169,7 @@ async function buildHello(): Promise<HelloMessage> {
   return {
     t: 'hello',
     role: 'student',
-    // 學生自輸姓名優先；空白則以機器名（IP／電腦名）顯示
-    name: (config.displayName ?? '').trim() || config.studentName,
+    name: config.studentName,
     classId: config.classId,
     protocolVersion: PROTOCOL_VERSION,
     mac,
@@ -204,7 +201,6 @@ async function connect(): Promise<void> {
   // 名稱由主行程決定（固定為本機 IP），這裡只是把結果顯示回唯讀欄位。
   els.studentName.value = config.studentName;
   void refreshIdleImage();
-  els.displayNameInput.value = config.displayName ?? '';
   // 開機初始畫面：教師端可遠端更換（存 config，每次開機顯示）
   if (config.idleTitle || config.idleText) {
     setIdle(config.idleTitle || '教室直播', config.idleText || '尚未連線到教師機');
@@ -1525,17 +1521,6 @@ function bindEvents(): void {
   }
 
   // 收檔資料夾：原生的資料夾選擇對話框 → 存進個人層設定
-  // 姓名輸入：存 config；已連線時自動重連讓新名字立即生效
-  els.btnDisplayName.addEventListener('click', async () => {
-    const name = els.displayNameInput.value.trim().slice(0, 32);
-    await window.studentApi.saveConfig({ displayName: name });
-    log('info', name ? `姓名已設為「${name}」` : '姓名已清除，教師端改以 IP／電腦名顯示');
-    if (client) {
-      disconnect();
-      void connect();
-    }
-  });
-
   // 區網搜尋伺服器（手動）
   els.btnDiscover.addEventListener('click', () => void runDiscover(false));
   els.btnChooseDir.addEventListener('click', async () => {
