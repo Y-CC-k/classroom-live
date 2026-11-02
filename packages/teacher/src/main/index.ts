@@ -7,6 +7,7 @@ import { listSources } from './sources.js';
 import { getConfig, saveConfig } from './store.js';
 import { wakeTargets } from './wol.js';
 import { WakeRoster } from './wake-roster.js';
+import { registerSnapshotIpc } from './snapshots.js';
 import type { PeerInfo } from '@classroom/protocol';
 
 const isDev = process.env.NODE_ENV === 'development';
@@ -126,6 +127,7 @@ if (!gotLock) {
 
   app.whenReady().then(async () => {
     registerIpc();
+    registerSnapshotIpc();
     await createWindow();
 
     app.on('activate', async () => {

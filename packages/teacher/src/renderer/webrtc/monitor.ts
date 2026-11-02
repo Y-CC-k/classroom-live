@@ -10,7 +10,8 @@ export class MonitorManager {
   private readonly sendCtl: (peerId: string, message: DcMessage) => void;
   private readonly onLog: (level: 'info' | 'warn' | 'error', message: string) => void;
   private readonly onWatchFrame:
-    ((peerId: string, frame: { url: string; width: number; height: number; seq: number }) => void) | undefined;
+    | ((peerId: string, frame: { url: string; width: number; height: number; seq: number; blob: Blob }) => void)
+    | undefined;
 
   // ── 螢幕監看的幀組裝狀態（one per watched peer） ──
   private readonly watchFrames = new Map<
@@ -30,7 +31,10 @@ export class MonitorManager {
     links: Map<string, Link>,
     sendCtl: (peerId: string, message: any) => void,
     onLog: (level: 'info' | 'warn' | 'error', message: string) => void,
-    onWatchFrame?: (peerId: string, frame: { url: string; width: number; height: number; seq: number }) => void
+    onWatchFrame?: (
+      peerId: string,
+      frame: { url: string; width: number; height: number; seq: number; blob: Blob }
+    ) => void
   ) {
     this.options = options;
     this.links = links;
@@ -135,6 +139,7 @@ export class MonitorManager {
         width: assembly.width,
         height: assembly.height,
         seq: assembly.seq,
+        blob,
       });
     }
   }

@@ -169,6 +169,7 @@ const els = {
   boardPenTool: $<HTMLButtonElement>('board-tool-pen'),
   boardEraserTool: $<HTMLButtonElement>('board-tool-eraser'),
   btnCleanFiles: $<HTMLButtonElement>('btn-clean-files'),
+  btnSnapshots: $<HTMLButtonElement>('btn-snapshots'),
   btnIdleImage: $<HTMLButtonElement>('btn-idle-image'),
   idleImageLabel: $<HTMLSpanElement>('idle-image-label'),
 
@@ -860,12 +861,39 @@ async function connect(): Promise<void> {
   // 初始化監控牆（session 已建立）
   // 監控牆：勾選的台優先；沒勾選則監看全部已連線學生機
   const activeSession = session;
-  monitorWall = new MonitorWall(els.monitorWall, activeSession, els.btnMonitorWall, () => {
-    if (checkedPeers.size > 0) return [...checkedPeers];
-    return activeSession.students().map(s => s.info.id);
-  });
+  monitorWall = new MonitorWall(
+    els.monitorWall,
+    activeSession,
+    els.btnMonitorWall,
+    () => {
+      if (checkedPeers.size > 0) return [...checkedPeers];
+      return activeSession.students().map(s => s.info.id);
+    },
+    (peerId, name, blob) => void handleSnapshot(peerId, name, blob)
+  );
 
   // 白板筆：擷取畫面尺寸來源（video 或 img 預覽）
+
+  /** Blob → base64（data URL 去前綴） */
+  const blobToBase64 = (blob: Blob): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result).split(',')[1] ?? '');
+      reader.onerror = () => reject(reader.error ?? new Error('讀取失敗'));
+      reader.readAsDataURL(blob);
+    });
+
+  // 📸 收藏：把該台當前幀存到「文件\教室直播收藏」
+  const handleSnapshot = async (peerId: string, name: string, blob: Blob): Promise<void> => {
+    try {
+      const b64 = await blobToBase64(blob);
+      const result = await window.teacherApi.saveSnapshot(name, b64);
+      if (result.ok) log('info', `📸 已收藏 ${name} 畫面：${result.path}`);
+      else log('warn', `收藏失敗：${result.message ?? '未知原因'}`);
+    } catch (error) {
+      log('warn', `收藏失敗：${error instanceof Error ? error.message : String(error)}`);
+    }
+  };
 
   // 獨立電子白板（board-mode）：全螢幕白紙，學生機同步；連線中即可用
   boardInstance = new Whiteboard(els.boardCanvas, {
@@ -1469,6 +1497,12 @@ function bindEvents(): void {
     boardInstance?.setTool('eraser');
     els.boardEraserTool.classList.add('active');
     els.boardPenTool.classList.remove('active');
+  });
+
+  // 📁 開啟截圖收藏資料夾
+  els.btnSnapshots.addEventListener('click', async () => {
+    const dir = await window.teacherApi.openSnapshotsFolder();
+    log('info', `已開啟收藏資料夾：${dir}`);
   });
 
   // ── 清理全班收檔夾（雙確認，仿全班關機）──

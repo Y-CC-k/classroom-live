@@ -112,7 +112,12 @@ class WallCell {
   private readonly img: HTMLImageElement;
   private readonly nameEl: HTMLElement;
   private readonly metaEl: HTMLElement;
+  private readonly snapBtn: HTMLButtonElement;
+  /** 收藏回調（由 MonitorWall 注入） */
+  onSnapshot?: (peerId: string, name: string, blob: Blob) => void;
   private currentUrl: string | null = null;
+  /** 最後一幀的 Blob（📸 收藏用） */
+  lastBlob: Blob | null = null;
   /** 最後一次收到幀的時間（0 = 從未收到）；逾時未更新視為離線 */
   lastFrameAt = 0;
 
@@ -134,7 +139,18 @@ class WallCell {
     this.metaEl.className = 'wall-cell-meta';
     this.metaEl.textContent = '等待畫面…';
 
-    this.element.append(this.img, this.nameEl, this.metaEl);
+    // 📸 收藏按鈕：hover 格子顯示，點擊收藏當前畫面
+    this.snapBtn = document.createElement('button');
+    this.snapBtn.type = 'button';
+    this.snapBtn.className = 'wall-cell-snap';
+    this.snapBtn.textContent = '📸';
+    this.snapBtn.title = '收藏這張畫面';
+    this.snapBtn.addEventListener('click', e => {
+      e.stopPropagation();
+      if (this.lastBlob) this.onSnapshot?.(this.peerId, this.nameEl.textContent ?? this.peerId, this.lastBlob);
+    });
+
+    this.element.append(this.img, this.nameEl, this.metaEl, this.snapBtn);
   }
 
   get elementRef(): HTMLElement {
@@ -142,7 +158,8 @@ class WallCell {
   }
 
   /** 更新畫面（來自 onWatchFrame 回調） */
-  updateFrame(frame: { url: string; width: number; height: number; seq: number }): void {
+  updateFrame(frame: { url: string; width: number; height: number; seq: number; blob: Blob }): void {
+    this.lastBlob = frame.blob;
     // 釋放舊的 blob URL
     if (this.currentUrl) {
       URL.revokeObjectURL(this.currentUrl);
@@ -157,6 +174,7 @@ class WallCell {
 
   /** 設定為待機（沒有畫面） */
   setIdle(): void {
+    this.lastBlob = null;
     this.img.src = '';
     this.element.classList.remove('active');
     this.element.classList.add('inactive');
@@ -169,6 +187,7 @@ class WallCell {
 
   /** 標記為離線（逾時未收到幀）：灰底＋明確文字，不再像是「應該有影像」 */
   markOffline(): void {
+    this.lastBlob = null;
     if (this.currentUrl) {
       URL.revokeObjectURL(this.currentUrl);
       this.currentUrl = null;
@@ -197,16 +216,20 @@ export class MonitorWall {
   private frameCheckTimer: ReturnType<typeof setInterval> | null = null;
   /** 回傳要監看的學生 ID 列表（勾選的台優先，否則全部已連線學生機） */
   private readonly getWatchTargets: () => string[];
+  /** 📸 收藏回調：peerId、學生名、當前幀 Blob */
+  private readonly onSnapshot: (peerId: string, name: string, blob: Blob) => void;
 
   constructor(
     container: HTMLElement,
     session: TeacherSession,
     toggleBtn: HTMLButtonElement,
-    getWatchTargets: () => string[]
+    getWatchTargets: () => string[],
+    onSnapshot: (peerId: string, name: string, blob: Blob) => void
   ) {
     this.container = container;
     this.session = session;
     this.toggleBtn = toggleBtn;
+    this.onSnapshot = onSnapshot;
     this.getWatchTargets = getWatchTargets;
 
     // 注入樣式
@@ -335,7 +358,10 @@ export class MonitorWall {
   }
 
   /** 處理收到的監看幀 */
-  handleWatchFrame(peerId: string, frame: { url: string; width: number; height: number; seq: number }): void {
+  handleWatchFrame(
+    peerId: string,
+    frame: { url: string; width: number; height: number; seq: number; blob: Blob }
+  ): void {
     const cell = this.cells.get(peerId);
     if (cell) {
       cell.updateFrame(frame);

@@ -68,7 +68,10 @@ export interface TeacherSessionOptions extends TeacherSessionEvents {
    * 單台螢幕監看：組完一幀回報（URL 需顯示後 revokeObjectURL）；
    * peerId 不再被監看就不用理它。
    */
-  onWatchFrame?: (peerId: string, frame: { url: string; width: number; height: number; seq: number }) => void;
+  onWatchFrame?: (
+    peerId: string,
+    frame: { url: string; width: number; height: number; seq: number; blob: Blob }
+  ) => void;
   // SFU 相關設定
   sfuServerUrl?: string;
   sfuAnnouncedIp?: string | null;

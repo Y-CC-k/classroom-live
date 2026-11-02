@@ -527,6 +527,7 @@ export class BroadcastManager {
             width: assembly.width,
             height: assembly.height,
             seq: assembly.seq,
+            blob,
           });
         }
         return;

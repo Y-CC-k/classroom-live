@@ -24,6 +24,13 @@ const api: TeacherApi = {
   getWakeRoster: () => ipcRenderer.invoke(IPC.getWakeRoster) as Promise<WakeTarget[]>,
   reportWakePeers: (peers: PeerInfo[]) => ipcRenderer.invoke(IPC.reportWakePeers, peers) as Promise<WakeTarget[]>,
   wake: (targets?: string[]) => ipcRenderer.invoke(IPC.wake, targets) as Promise<WakeSendResult[]>,
+  saveSnapshot: (studentName: string, dataBase64: string) =>
+    ipcRenderer.invoke(IPC.saveSnapshot, studentName, dataBase64) as Promise<{
+      ok: boolean;
+      path?: string;
+      message?: string;
+    }>,
+  openSnapshotsFolder: () => ipcRenderer.invoke(IPC.openSnapshotsFolder) as Promise<string>,
 };
 
 contextBridge.exposeInMainWorld('teacherApi', api);

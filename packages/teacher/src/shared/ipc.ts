@@ -17,6 +17,10 @@ export const IPC = {
   reportWakePeers: 'teacher:report-wake-peers',
   /** 發送 Wake-on-LAN magic packet 給指定目標（或全部名單） */
   wake: 'teacher:wake',
+  /** 收藏學生機畫面截圖（存到「文件\教室直播收藏」） */
+  saveSnapshot: 'teacher:save-snapshot',
+  /** 以檔案總管開啟收藏資料夾 */
+  openSnapshotsFolder: 'teacher:open-snapshots-folder',
 } as const;
 
 export interface CaptureSource {
@@ -245,6 +249,10 @@ export interface TeacherApi {
   reportWakePeers(peers: PeerInfo[]): Promise<WakeTarget[]>;
   /** 發送 Wake-on-LAN magic packet */
   wake(targets?: string[]): Promise<WakeSendResult[]>;
+  /** 收藏學生機畫面截圖；回傳存檔路徑 */
+  saveSnapshot(studentName: string, dataBase64: string): Promise<{ ok: boolean; path?: string; message?: string }>;
+  /** 以檔案總管開啟收藏資料夾 */
+  openSnapshotsFolder(): Promise<string>;
 }
 
 declare global {
