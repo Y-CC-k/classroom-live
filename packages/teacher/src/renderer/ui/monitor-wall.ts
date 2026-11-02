@@ -264,7 +264,9 @@ export class MonitorWall {
 
     // 開始監看（間隔 3000ms）
     if (peerIds.length > 0) {
-      this.session.watchStudents(peerIds, 3000);
+      // 5 秒一張：29 台同時監看時總下行約 1.5 Mbps（3 秒時為 3+ Mbps），
+    // 監控牆用途（確認學生在不在/做什麼）不需要更快。
+    this.session.watchStudents(peerIds, 5000);
     }
 
     this.renderGrid();

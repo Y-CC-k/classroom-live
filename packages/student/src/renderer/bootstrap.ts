@@ -685,7 +685,9 @@ async function handleImgChannel(data: unknown): Promise<void> {
 // 約 30～70 KB/s，同時全程有畫面（不是只送一張就停）。
 
 /** 監看幀的寬度上限（教師端 480px 顯示窗足夠清楚，也省頻寬） */
-const WATCH_MAX_WIDTH = 1600;
+/* 960 寬：監控牆格子僅 200-300px、單台監看窗 760px，960 已足夠且大幅省頻寬
+   （1600 時 29 台 x 3s ≈ 14 Mbps；960 時每張約剩 36%，僅 ~3 Mbps） */
+const WATCH_MAX_WIDTH = 960;
 /** 監看幀 JPEG 品質：文字要能對答案，取中等偏上 */
 const WATCH_QUALITY = 0.62;
 
