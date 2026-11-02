@@ -313,6 +313,7 @@ export class MonitorWall {
     for (const peerId of watchable) {
       const name = students.find(s => s.info.id === peerId)?.info.name ?? peerId;
       const cell = new WallCell(peerId, name);
+      cell.onSnapshot = (pid, nm, blob) => this.onSnapshot(pid, nm, blob);
       this.cells.set(peerId, cell);
       this.container.appendChild(cell.elementRef);
     }
