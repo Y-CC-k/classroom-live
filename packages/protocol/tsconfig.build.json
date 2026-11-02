@@ -11,5 +11,6 @@
     "moduleResolution": "NodeNext",
     "noEmit": false
   },
-  "include": ["src/**/*.ts", "lib/**/*.ts"]
+  "include": ["src/**/*.ts", "lib/**/*.ts"],
+  "exclude": ["src/**/*.test.ts", "lib/**/*.test.ts"]
 }

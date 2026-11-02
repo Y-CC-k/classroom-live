@@ -220,7 +220,6 @@ export class MonitorWall {
     // 綁定開關按鈕
     this.toggleBtn.addEventListener('click', () => this.toggle());
 
-
     // 幀逾時檢查（監控牆開啟期間持續運作，學生機離線的格子會標「訊號中斷」）
     this.frameCheckTimer = setInterval(() => this.checkFrameTimeouts(), 10_000);
 

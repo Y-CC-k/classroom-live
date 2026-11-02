@@ -462,12 +462,26 @@ export class BroadcastManager {
       if (parsed.t === 'evt-hello') {
         // 版本戳：學生機升級後老師記錄一眼看出它跑哪一版。
         // 舊版學生機不帶 build——不能沈默，要標「舊版」才不會誤判成沒連上。
+        // 版本與教師機不一致時改用警告色（黃），提醒老師送升級包。
         const name = parsed.studentName || parsed.studentId || '(未知位址)';
-        if (parsed.agent?.build) {
-          const buildLocal = `${parsed.agent.build.slice(0, 16).replace('T', ' ')}`;
-          this.options.onLog('info', `${name}（v${parsed.agent.version}，build ${buildLocal}）已連線`);
+        const agent = parsed.agent;
+        const teacherVersion = this.options.appVersion;
+        if (agent?.build) {
+          const buildLocal = `${agent.build.slice(0, 16).replace('T', ' ')}`;
+          const mismatched = Boolean(teacherVersion) && agent.version !== teacherVersion;
+          if (mismatched) {
+            this.options.onLog(
+              'warn',
+              `${name}（v${agent.version}，build ${buildLocal}）已連線 — ⚠️ 版本與教師機（v${teacherVersion}）不一致，建議送升級包`
+            );
+          } else {
+            this.options.onLog('info', `${name}（v${agent.version}，build ${buildLocal}）已連線`);
+          }
         } else {
-          this.options.onLog('warn', `${name}（v${parsed.agent?.version ?? '?'}，舊版未帶 build 標記）已連線`);
+          this.options.onLog(
+            'warn',
+            `${name}（v${agent?.version ?? '?'}，舊版未帶 build 標記）已連線 — 版本不明，建議送升級包`
+          );
         }
         return;
       }

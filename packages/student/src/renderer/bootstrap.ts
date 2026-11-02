@@ -179,6 +179,10 @@ async function connect(): Promise<void> {
   });
   // 名稱由主行程決定（固定為本機 IP），這裡只是把結果顯示回唯讀欄位。
   els.studentName.value = config.studentName;
+  // 開機初始畫面：教師端可遠端更換（存 config，每次開機顯示）
+  if (config.idleTitle || config.idleText) {
+    setIdle(config.idleTitle || '教室直播', config.idleText || '尚未連線到教師機');
+  }
 
   const hello = await buildHello();
 
@@ -944,6 +948,23 @@ async function handleControl(raw: unknown): Promise<void> {
       // 廣播強制模式：置頂＋全螢幕（靜音／關網頁已改為教師端獨立按鍵）
       broadcastActive = on;
       void window.studentApi.setBroadcastMode(on);
+      break;
+    }
+
+    case 'idle-screen': {
+      // 老師遠端更換待機（開機初始）畫面：立即套用並持久化
+      const title = String(message.title ?? '')
+        .trim()
+        .slice(0, 32);
+      const text = String(message.text ?? '')
+        .trim()
+        .slice(0, 200);
+      log('info', `老師已更新待機畫面：${title || '（無標題）'}`);
+      void window.studentApi.saveConfig({ idleTitle: title, idleText: text });
+      // 未廣播時才立即套用顯示（廣播中套了也看不見）
+      if (!broadcastActive) {
+        setIdle(title || '教室直播', text || '已連線，等待教師廣播…');
+      }
       break;
     }
 

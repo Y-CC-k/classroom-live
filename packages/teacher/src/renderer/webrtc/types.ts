@@ -54,6 +54,8 @@ export interface TeacherSessionOptions extends TeacherSessionEvents {
   maxFramerate: number;
   /** 優先 H.264（硬體編碼）：學生機多時教師機 CPU 的關鍵開關 */
   hardwareCodec: boolean;
+  /** 教師機自身版本：學生機連線時比較，不一致的記錄用警告色提示送升級包 */
+  appVersion?: string;
   /** 自適應畫質：根據網路狀況自動調整編碼參數 */
   adaptiveQualityEnabled: boolean;
   /** 廣播模式：video = 視訊；image = JPEG 逐張（多台教室用）；sfu = Selective Forwarding Unit */

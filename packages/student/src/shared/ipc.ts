@@ -89,6 +89,13 @@ export interface StudentConfig {
    */
   serverUrlLocked: boolean;
   /**
+   * 待機（開機初始）畫面文字，由教師端遠端更換：
+   * 收到 idle-screen 指令時立即套用並存進本機設定，下次開機直接顯示。
+   * 空字串 = 用系統預設（「教室直播」/「尚未連線到教師機」）。
+   */
+  idleTitle?: string;
+  idleText?: string;
+  /**
    * 教師機傳送檔案的落地資料夾。
    * 部署層（安裝目錄 config.json 的 fileSaveDir）會在「值變更時」重新壓過，
    * 其餘時間學生（或維護者）可以在設定面板自行改；未設定時預設 D:\。

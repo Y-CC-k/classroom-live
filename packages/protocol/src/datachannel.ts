@@ -43,6 +43,12 @@ export type CtlMessage =
    */
   | { t: 'watch'; on: boolean; intervalMs?: number }
   /**
+   * 更新學生機「待機（開機初始）畫面」的文字。
+   * 學生端立即套用（未廣播時）並存進 config，下次開機也顯示。
+   * title 最長 32 字、text 最長 200 字（學生端再截斷一次保險）。
+   */
+  | { t: 'idle-screen'; title: string; text: string }
+  /**
    * 教師開始／停止廣播。
    * `mode` 說明畫面走哪條路：video = 視訊軌；image = 圖片通道逐張。
    * 停止時學生端要立刻「清屏」——只靠 `replaceTrack(null)` 的話，

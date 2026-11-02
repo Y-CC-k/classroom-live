@@ -187,6 +187,30 @@
             <button id="btn-reboot-all" class="btn warn grow">⟳ 重開機</button>
           </div>
 
+          <!-- 學生機待機（開機初始）畫面：遠端更換學生機開機/待機顯示的文字 -->
+          <h2 class="mid-title">學生機待機畫面</h2>
+          <div class="row">
+            <input
+              id="idle-title"
+              class="grow"
+              type="text"
+              spellcheck="false"
+              maxlength="32"
+              placeholder="標題，例如：第三節 資訊課"
+            />
+          </div>
+          <div class="row">
+            <input
+              id="idle-text"
+              class="grow"
+              type="text"
+              spellcheck="false"
+              maxlength="200"
+              placeholder="內容，例如：請靜候廣播，勿操作電腦"
+            />
+            <button id="btn-idle-screen" class="btn primary">更新</button>
+          </div>
+
           <!-- 開機還原設定：由教師機統一管理每台學生機的「開機自動還原 C:」 -->
           <h2 class="mid-title">開機還原設定</h2>
           <div class="row btn-row">

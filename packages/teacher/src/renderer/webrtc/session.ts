@@ -372,6 +372,21 @@ export class TeacherSession {
   getConnectedStudentIds(): string[] {
     return this.monitorManager.getConnectedPeerIds();
   }
+
+  /**
+   * 更新所有已連線學生機的待機（開機初始）畫面文字。
+   * 回傳已送出的台數（ctl 通道未開的台送不到）。
+   */
+  setIdleScreenAll(title: string, text: string): number {
+    let sent = 0;
+    for (const [peerId, link] of this.broadcastManager.getLinks()) {
+      if (link.ctl?.readyState === 'open') {
+        this.broadcastManager.sendCtl(peerId, { t: 'idle-screen', title, text });
+        sent++;
+      }
+    }
+    return sent;
+  }
 }
 
 export function describe(error: unknown): string {

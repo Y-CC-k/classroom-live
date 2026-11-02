@@ -44,6 +44,8 @@ let broadcastingSourceId: string | null = null;
 let previewToken = 0;
 /** 監控牆 UI 組件（由 boot() 初始化） */
 let monitorWall: MonitorWall | null = null;
+/** 教師機自身版本（boot() 時從 appInfo 取得；學生機連線時比較用） */
+let teacherAppVersion = '';
 
 /** 釋放已經被換掉的鏡像修正器（務必在 `setLocalStream()` 之後呼叫）。 */
 function disposeStaleMirrors(): void {
@@ -150,6 +152,11 @@ const els = {
   btnMonitorStop: $<HTMLButtonElement>('btn-monitor-stop'),
   btnMonitorWall: $<HTMLButtonElement>('btn-monitor-wall'),
   monitorWall: $<HTMLDivElement>('monitor-wall'),
+
+  // 學生機待機（開機初始）畫面
+  idleTitleInput: $<HTMLInputElement>('idle-title'),
+  idleTextInput: $<HTMLInputElement>('idle-text'),
+  btnIdleScreen: $<HTMLButtonElement>('btn-idle-screen'),
 
   // 自適應畫質
   adaptiveQuality: $<HTMLInputElement>('adaptive-quality'),
@@ -877,6 +884,7 @@ async function connect(): Promise<void> {
     maxBitrate: config.maxBitrate,
     maxFramerate: config.maxFramerate,
     hardwareCodec: config.hardwareCodec,
+    appVersion: teacherAppVersion,
     adaptiveQualityEnabled: config.adaptiveQualityEnabled,
     broadcastMode: config.broadcastMode,
     // 注入設定檔的定影幀品質（每次重連都套一次，避免 session 重建後回到預設）
@@ -1463,6 +1471,25 @@ function bindEvents(): void {
     log('info', `停留幀畫質已設為 ${quality}（下一張定影幀起生效）`);
   });
 
+  // 學生機待機（開機初始）畫面：遠端更換
+  els.btnIdleScreen.addEventListener('click', () => {
+    if (!session?.isConnected) {
+      log('warn', '尚未連線；請先按「連線」再更新待機畫面。');
+      return;
+    }
+    const title = els.idleTitleInput.value.trim();
+    const text = els.idleTextInput.value.trim();
+    if (!title && !text) {
+      log('warn', '請先輸入標題或內容。');
+      return;
+    }
+    const count = session.setIdleScreenAll(title, text);
+    log(
+      count > 0 ? 'info' : 'warn',
+      `待機畫面已送出給 ${count} 台學生機（未廣播的台立即顯示；全部存檔，下次開機也顯示）。`
+    );
+  });
+
   // 自適應畫質開關
   els.adaptiveQuality.addEventListener('change', () => {
     const enabled = els.adaptiveQuality.checked;
@@ -1527,6 +1554,7 @@ async function boot(): Promise<void> {
   );
 
   const info = await window.teacherApi.appInfo();
+  teacherAppVersion = info.version;
   log('info', `教師機 v${info.version}（Electron ${info.electron} / Chrome ${info.chrome}）`);
   log('info', '按「連線」加入班級，然後選擇來源並按「開始廣播」。');
 
