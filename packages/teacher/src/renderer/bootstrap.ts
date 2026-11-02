@@ -1546,6 +1546,11 @@ function toggleBoardMode(): void {
   }
   boardModeOn = !boardModeOn;
   if (boardModeOn) {
+    // 白板全螢幕時監控牆/廣播流量只是背景負擔：自動收掉監控牆釋放頻寬
+    if (monitorWall?.isVisible) {
+      monitorWall.hide();
+      log('info', '已自動關閉監控牆（白板模式下重新開啟即可）。');
+    }
     els.boardLayer.hidden = false;
     els.btnBoardMode.textContent = '✕ 結束白板';
     els.btnBoardMode.classList.add('danger');

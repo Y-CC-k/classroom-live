@@ -56,6 +56,9 @@ export class Whiteboard {
   private strokes: Stroke[] = [];
   private current: Stroke | null = null;
   private last: Point = { x: 0, y: 0 };
+  /** move 節流：高頻 pointermove 每則都對 N 台送訊息，30ms 合併一次足夠平滑 */
+  private lastSentAt = 0;
+  private pendingMove: Point | null = null;
 
   constructor(canvas: HTMLCanvasElement, opts: WhiteboardOptions) {
     this.canvas = canvas;
@@ -146,7 +149,19 @@ export class Whiteboard {
 
   private onMove(e: PointerEvent): void {
     if (!this.enabled || !this.drawing || !this.current) return;
-    const p = this.toNormalized(e);
+    // 先累積，節流送出：60Hz 滑鼠 x N 台連線會把主執行緒/頻寬塞滿
+    this.pendingMove = this.toNormalized(e);
+    const now = performance.now();
+    if (now - this.lastSentAt < 30) return;
+    this.lastSentAt = now;
+    this.flushMove();
+  }
+
+  /** 送出累積的移動點（節流用；onUp 前也會 flush，確保最後位置不丟） */
+  private flushMove(): void {
+    if (!this.drawing || !this.current || !this.pendingMove) return;
+    const p = this.pendingMove;
+    this.pendingMove = null;
     this.localSegment(this.last, p, this.current.color, this.current.width);
     this.current.points.push(p);
     this.last = p;
@@ -155,6 +170,7 @@ export class Whiteboard {
 
   private onUp(e: PointerEvent): void {
     if (!this.drawing || !this.current) return;
+    this.flushMove(); // 節流期間累積的最後位置補送
     const p = this.toNormalized(e);
     this.localSegment(this.last, p, this.current.color, this.current.width);
     this.current.points.push(p);
