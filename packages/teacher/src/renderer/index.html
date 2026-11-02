@@ -62,8 +62,6 @@
         <div class="row source-wrap">
           <img id="source-preview" class="source-preview" alt="來源預覽" />
           <video id="source-video" class="source-preview" autoplay muted playsinline hidden></video>
-          <!-- 白板筆：蓋在來源預覽上，筆跡正規化座標同步到學生機 -->
-          <canvas id="pen-canvas" class="pen-canvas" hidden></canvas>
         </div>
         <div class="row">
           <label class="checkbox-row">
@@ -120,21 +118,6 @@
           <button id="btn-stop-broadcast" class="btn danger grow" disabled>停止</button>
         </div>
 
-        <!-- 白板筆工具列：廣播中才可用；顏色／粗細／復原／清除 -->
-        <div class="row whitebar" id="whitebar" hidden>
-          <button class="pen-color active" data-color="#ff3b30" style="background:#ff3b30" title="紅"></button>
-          <button class="pen-color" data-color="#ffd60a" style="background:#ffd60a" title="黃"></button>
-          <button class="pen-color" data-color="#34c759" style="background:#34c759" title="綠"></button>
-          <button class="pen-color" data-color="#0a84ff" style="background:#0a84ff" title="藍"></button>
-          <button class="pen-color" data-color="#ffffff" style="background:#ffffff" title="白"></button>
-          <select id="pen-width" title="筆粗細">
-            <option value="3">細</option>
-            <option value="6" selected>中</option>
-            <option value="12">粗</option>
-          </select>
-          <button id="pen-undo" class="btn tiny ghost" title="復原上一筆">↺</button>
-          <button id="pen-clear" class="btn tiny danger" title="清除全部筆跡">🗑</button>
-        </div>
         <p class="hint">
           來源有 <strong>🖥 整個螢幕</strong>、🪟 單一視窗與 📷 攝影機，預設會選整個螢幕。
           選好來源與畫質後，按最下方的「開始廣播」。

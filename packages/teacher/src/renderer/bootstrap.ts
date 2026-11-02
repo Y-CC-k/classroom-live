@@ -5,7 +5,7 @@ import { QUALITY_PRESETS, qualityPresetDef } from '../shared/ipc.js';
 import { createMirrorFixer, type MirrorFixer } from './mirror.js';
 import { TeacherSession, describe } from './webrtc/index.js';
 import { MonitorWall } from './ui/monitor-wall.js';
-import { Whiteboard, PEN_COLORS } from './ui/whiteboard.js';
+import { Whiteboard } from './ui/whiteboard.js';
 
 /**
  * 教師機 renderer：負責所有 UI 與 WebRTC。
@@ -48,7 +48,7 @@ let monitorWall: MonitorWall | null = null;
 /** 教師機自身版本（boot() 時從 appInfo 取得；學生機連線時比較用） */
 let teacherAppVersion = '';
 /** 白板筆（廣播中在來源預覽上標註，筆跡同步學生機） */
-let whiteboard: Whiteboard | null = null;
+const whiteboard: Whiteboard | null = null;
 /** 獨立電子白板實例（board-mode：學生機全螢幕白底） */
 let boardInstance: Whiteboard | null = null;
 /** 電子白板模式是否開啟 */
@@ -159,7 +159,6 @@ const els = {
   idleTextInput: $<HTMLInputElement>('idle-text'),
   btnIdleScreen: $<HTMLButtonElement>('btn-idle-screen'),
   idleImageInput: $<HTMLInputElement>('idle-image-input'),
-  penCanvas: $<HTMLCanvasElement>('pen-canvas'),
   boardLayer: $<HTMLDivElement>('board-layer'),
   boardCanvas: $<HTMLCanvasElement>('board-canvas'),
   btnBoardMode: $<HTMLButtonElement>('btn-board-mode'),
@@ -167,10 +166,8 @@ const els = {
   boardClear: $<HTMLButtonElement>('board-clear'),
   boardExit: $<HTMLButtonElement>('board-exit'),
   boardWidth: $<HTMLSelectElement>('board-width'),
-  whitebar: $<HTMLDivElement>('whitebar'),
-  penWidth: $<HTMLSelectElement>('pen-width'),
-  penUndo: $<HTMLButtonElement>('pen-undo'),
-  penClear: $<HTMLButtonElement>('pen-clear'),
+  boardPenTool: $<HTMLButtonElement>('board-tool-pen'),
+  boardEraserTool: $<HTMLButtonElement>('board-tool-eraser'),
   btnIdleImage: $<HTMLButtonElement>('btn-idle-image'),
   idleImageLabel: $<HTMLSpanElement>('idle-image-label'),
 
@@ -567,7 +564,6 @@ async function startBroadcast(): Promise<void> {
     const track = stream.getVideoTracks()[0];
     if (source.kind === 'camera') syncCameraLabel(source, track?.label);
     // 白板筆可用（蓋在來源預覽上，筆跡同步學生機）
-    els.whitebar.hidden = false;
     whiteboard?.setEnabled(true);
     log('info', `已開始廣播「${source.name}」（${await measureStreamSize(stream)}）`);
     els.btnStart.disabled = true;
@@ -593,9 +589,6 @@ async function stopBroadcast(): Promise<void> {
   disposeStaleMirrors();
   els.btnStart.disabled = false;
   els.btnStop.disabled = true;
-  // 白板筆跟著廣播收：本地與學生端筆跡一併清除
-  els.whitebar.hidden = true;
-  whiteboard?.setEnabled(false);
   log('info', '已停止廣播');
   renderStudents();
   // 停止後若選的是攝影機，重新開一條預覽串流。
@@ -870,22 +863,6 @@ async function connect(): Promise<void> {
   });
 
   // 白板筆：擷取畫面尺寸來源（video 或 img 預覽）
-  whiteboard = new Whiteboard(els.penCanvas, {
-    mode: 'overlay',
-    send: msg => {
-      if (msg.t === 'pen') session?.sendPen(msg.op!, msg.color!, msg.width!, msg.x!, msg.y!);
-      else if (msg.t === 'pen-clear') session?.penClearAll();
-      else session?.penUndoAll();
-    },
-    getSourceSize: () => {
-      const v = els.sourceVideo;
-      if (!v.hidden && v.videoWidth > 0) return { w: v.videoWidth, h: v.videoHeight };
-      const img = els.sourcePreview;
-      if (img.naturalWidth > 0) return { w: img.naturalWidth, h: img.naturalHeight };
-      return { w: 16, h: 9 };
-    },
-  });
-  els.penCanvas.hidden = false;
 
   // 獨立電子白板（board-mode）：全螢幕白紙，學生機同步；連線中即可用
   boardInstance = new Whiteboard(els.boardCanvas, {
@@ -1466,18 +1443,6 @@ function bindEvents(): void {
     els.idleImageInput.value = '';
   });
 
-  // ── 白板筆工具列 ──
-  document.querySelectorAll<HTMLButtonElement>('.pen-color').forEach(btn => {
-    btn.addEventListener('click', () => {
-      document.querySelectorAll<HTMLButtonElement>('.pen-color').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      whiteboard?.setColor(btn.dataset.color ?? PEN_COLORS[0]);
-    });
-  });
-  els.penWidth.addEventListener('change', () => whiteboard?.setLineWidth(Number(els.penWidth.value) || 6));
-  els.penUndo.addEventListener('click', () => whiteboard?.undo(true));
-  els.penClear.addEventListener('click', () => whiteboard?.clear(true));
-
   // ── 獨立電子白板（board-mode）──
   els.btnBoardMode.addEventListener('click', () => toggleBoardMode());
   els.boardExit.addEventListener('click', () => toggleBoardMode());
@@ -1491,6 +1456,17 @@ function bindEvents(): void {
     });
   });
   els.boardWidth.addEventListener('change', () => boardInstance?.setLineWidth(Number(els.boardWidth.value) || 8));
+
+  els.boardPenTool.addEventListener('click', () => {
+    boardInstance?.setTool('pen');
+    els.boardPenTool.classList.add('active');
+    els.boardEraserTool.classList.remove('active');
+  });
+  els.boardEraserTool.addEventListener('click', () => {
+    boardInstance?.setTool('eraser');
+    els.boardEraserTool.classList.add('active');
+    els.boardPenTool.classList.remove('active');
+  });
 
   // 自適應畫質開關
   els.adaptiveQuality.addEventListener('change', () => {
@@ -1554,6 +1530,7 @@ function toggleBoardMode(): void {
     els.boardLayer.hidden = false;
     els.btnBoardMode.textContent = '✕ 結束白板';
     els.btnBoardMode.classList.add('danger');
+    boardInstance?.setEnabled(true);
     boardInstance?.clear(false); // 開新板：本地清空
     session.boardModeAll(true);
     session.boardClearAll();
@@ -1562,6 +1539,7 @@ function toggleBoardMode(): void {
     els.boardLayer.hidden = true;
     els.btnBoardMode.textContent = '📝 電子白板';
     els.btnBoardMode.classList.remove('danger');
+    boardInstance?.setEnabled(false);
     boardInstance?.clear(false);
     session.boardModeAll(false);
     log('info', '電子白板已關閉，學生機恢復原畫面。');

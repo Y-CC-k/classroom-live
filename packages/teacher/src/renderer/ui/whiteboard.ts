@@ -51,6 +51,7 @@ export class Whiteboard {
 
   private enabled = false;
   private drawing = false;
+  private tool: 'pen' | 'eraser' = 'pen';
   private color: string;
   private lineWidth = 6;
   private strokes: Stroke[] = [];
@@ -81,10 +82,11 @@ export class Whiteboard {
     } else if (kind === 'undo') {
       this.opts.send({ t: `${prefix}undo` } as PenWire);
     } else if (pt) {
+      const wireColor = this.tool === 'eraser' ? 'eraser' : this.color;
       this.opts.send({
         t: `${prefix}pen`,
         op: 'move',
-        color: this.color,
+        color: wireColor,
         width: this.lineWidth,
         x: pt.x,
         y: pt.y,
@@ -102,7 +104,12 @@ export class Whiteboard {
     return this.enabled;
   }
 
-  setColor(color: string): void {
+  /** 切換工具：eraser 以 destination-out 擦除（筆跡歷史照存，重繪仍正確） */
+  setTool(tool: 'pen' | 'eraser'): void {
+    this.tool = tool;
+  }
+
+  setColor(color: string) {
     this.color = color;
   }
 
@@ -135,12 +142,13 @@ export class Whiteboard {
     const p = this.toNormalized(e);
     this.drawing = true;
     this.last = p;
-    this.current = { color: this.color, width: this.lineWidth, points: [p] };
-    this.localSegment(p, p, this.color, this.lineWidth);
+    const wireColor = this.tool === 'eraser' ? 'eraser' : this.color;
+    this.current = { color: wireColor, width: this.lineWidth, points: [p] };
+    this.localSegment(p, p, wireColor, this.lineWidth);
     this.opts.send({
       t: (this.opts.mode === 'standalone' ? 'board-pen' : 'pen') as PenWire['t'],
       op: 'down',
-      color: this.color,
+      color: wireColor,
       width: this.lineWidth,
       x: p.x,
       y: p.y,
@@ -180,7 +188,7 @@ export class Whiteboard {
     this.opts.send({
       t: (this.opts.mode === 'standalone' ? 'board-pen' : 'pen') as PenWire['t'],
       op: 'up',
-      color: this.color,
+      color: 'eraser' === this.tool ? 'eraser' : this.color,
       width: this.lineWidth,
       x: p.x,
       y: p.y,
@@ -227,6 +235,19 @@ export class Whiteboard {
     this.fit();
     const scale = window.devicePixelRatio || 1;
     const { drawW, drawH, ox, oy } = this.fitBox();
+    if (color === 'eraser') {
+      // 橡皮擦：挖掉已畫內容；筆寬放大 3 倍才擦得乾淨
+      this.ctx.globalCompositeOperation = 'destination-out';
+      this.ctx.lineWidth = Math.max(1, width * 3 * scale);
+      this.ctx.lineCap = 'round';
+      this.ctx.lineJoin = 'round';
+      this.ctx.beginPath();
+      this.ctx.moveTo((ox + from.x * drawW) * scale, (oy + from.y * drawH) * scale);
+      this.ctx.lineTo((ox + to.x * drawW) * scale, (oy + to.y * drawH) * scale);
+      this.ctx.stroke();
+      this.ctx.globalCompositeOperation = 'source-over';
+      return;
+    }
     this.ctx.strokeStyle = color;
     this.ctx.lineWidth = Math.max(1, width * scale);
     this.ctx.lineCap = 'round';

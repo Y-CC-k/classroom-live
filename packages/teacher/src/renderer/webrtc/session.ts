@@ -386,32 +386,6 @@ export class TeacherSession {
     return this.fileTransferManager.sendIdleImage(file);
   }
 
-  // ─────────────────────────── 白板筆 ───────────────────────────
-
-  /** 對全部已連線學生機送白板筆訊息（down/move/up）。回傳已送台數。 */
-  sendPen(op: 'down' | 'move' | 'up', color: string, width: number, x: number, y: number): number {
-    let sent = 0;
-    for (const [peerId, link] of this.broadcastManager.getLinks()) {
-      if (link.ctl?.readyState === 'open') {
-        this.broadcastManager.sendCtl(peerId, { t: 'pen', op, color, width, x, y });
-        sent++;
-      }
-    }
-    return sent;
-  }
-
-  /** 清除全部學生機上的白板筆跡。 */
-  penClearAll(): number {
-    let sent = 0;
-    for (const [peerId, link] of this.broadcastManager.getLinks()) {
-      if (link.ctl?.readyState === 'open') {
-        this.broadcastManager.sendCtl(peerId, { t: 'pen-clear' });
-        sent++;
-      }
-    }
-    return sent;
-  }
-
   /** 進入／離開獨立電子白板模式（學生機全螢幕白底）。 */
   boardModeAll(on: boolean): number {
     let sent = 0;
@@ -455,18 +429,6 @@ export class TeacherSession {
     for (const [peerId, link] of this.broadcastManager.getLinks()) {
       if (link.ctl?.readyState === 'open') {
         this.broadcastManager.sendCtl(peerId, { t: 'board-undo' });
-        sent++;
-      }
-    }
-    return sent;
-  }
-
-  /** 學生機復原最後一筆。 */
-  penUndoAll(): number {
-    let sent = 0;
-    for (const [peerId, link] of this.broadcastManager.getLinks()) {
-      if (link.ctl?.readyState === 'open') {
-        this.broadcastManager.sendCtl(peerId, { t: 'pen-undo' });
         sent++;
       }
     }
