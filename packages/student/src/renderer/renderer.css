@@ -521,3 +521,22 @@ kbd {
 .pen-overlay[hidden] {
   display: none;
 }
+
+/* ───────────── 獨立電子白板（board-mode） ───────────── */
+.board-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  background: #ffffff;
+}
+
+.board-layer[hidden] {
+  display: none;
+}
+
+.board-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}

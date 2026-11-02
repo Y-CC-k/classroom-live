@@ -412,6 +412,55 @@ export class TeacherSession {
     return sent;
   }
 
+  /** 進入／離開獨立電子白板模式（學生機全螢幕白底）。 */
+  boardModeAll(on: boolean): number {
+    let sent = 0;
+    for (const [peerId, link] of this.broadcastManager.getLinks()) {
+      if (link.ctl?.readyState === 'open') {
+        this.broadcastManager.sendCtl(peerId, { t: 'board-mode', on });
+        sent++;
+      }
+    }
+    return sent;
+  }
+
+  /** 電子白板筆（board-mode）。
+   */
+  sendBoardPen(op: 'down' | 'move' | 'up', color: string, width: number, x: number, y: number): number {
+    let sent = 0;
+    for (const [peerId, link] of this.broadcastManager.getLinks()) {
+      if (link.ctl?.readyState === 'open') {
+        this.broadcastManager.sendCtl(peerId, { t: 'board-pen', op, color, width, x, y });
+        sent++;
+      }
+    }
+    return sent;
+  }
+
+  /** 清除電子白板全部筆跡。 */
+  boardClearAll(): number {
+    let sent = 0;
+    for (const [peerId, link] of this.broadcastManager.getLinks()) {
+      if (link.ctl?.readyState === 'open') {
+        this.broadcastManager.sendCtl(peerId, { t: 'board-clear' });
+        sent++;
+      }
+    }
+    return sent;
+  }
+
+  /** 電子白板復原最後一筆。 */
+  boardUndoAll(): number {
+    let sent = 0;
+    for (const [peerId, link] of this.broadcastManager.getLinks()) {
+      if (link.ctl?.readyState === 'open') {
+        this.broadcastManager.sendCtl(peerId, { t: 'board-undo' });
+        sent++;
+      }
+    }
+    return sent;
+  }
+
   /** 學生機復原最後一筆。 */
   penUndoAll(): number {
     let sent = 0;

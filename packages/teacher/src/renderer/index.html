@@ -39,6 +39,8 @@
 
       <!-- 監控牆開關：放在頂部工具列右側 -->
       <button id="btn-monitor-wall" class="btn ghost" title="多螢幕監控牆">🖥 監控牆</button>
+      <!-- 電子白板：全螢幕白底書寫，筆跡同步學生機（連線中即可用） -->
+      <button id="btn-board-mode" class="btn ghost" title="全螢幕電子白板">📝 電子白板</button>
     </header>
 
     <main class="layout">
@@ -277,6 +279,25 @@
 
     <!-- 多螢幕監控牆：開啟時覆蓋顯示多台學生機畫面（每 3 秒一張 JPEG） -->
     <div id="monitor-wall" class="monitor-wall" hidden></div>
+
+    <!-- 獨立電子白板：全螢幕白底，筆跡同步學生機（board-mode） -->
+    <div id="board-layer" class="board-layer" hidden>
+      <canvas id="board-canvas" class="board-canvas"></canvas>
+      <div class="board-toolbar">
+        <button class="board-color active" data-color="#111111" title="黑"></button>
+        <button class="board-color" data-color="#e11d2e" title="紅"></button>
+        <button class="board-color" data-color="#0a84ff" title="藍"></button>
+        <button class="board-color" data-color="#34c759" title="綠"></button>
+        <select id="board-width" title="筆粗細">
+          <option value="4">細</option>
+          <option value="8" selected>中</option>
+          <option value="16">粗</option>
+        </select>
+        <button id="board-undo" class="btn tiny ghost" title="復原上一筆">↩</button>
+        <button id="board-clear" class="btn tiny danger" title="清除全部">🗑</button>
+        <button id="board-exit" class="btn tiny danger">✕ 結束白板</button>
+      </div>
+    </div>
 
     <!-- 單台螢幕監看：3 秒一張的浮動小窗（右下角） -->
     <div id="monitor-viewer" class="monitor-viewer" hidden>

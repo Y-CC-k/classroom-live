@@ -54,6 +54,8 @@ const els = {
   idleRules: $<HTMLImageElement>('idle-rules'),
   btnDiscover: $<HTMLButtonElement>('btn-discover'),
   discoverResults: $<HTMLDivElement>('discover-results'),
+  boardLayer: $<HTMLDivElement>('board-layer'),
+  boardCanvas: $<HTMLCanvasElement>('board-canvas'),
 
   settings: $<HTMLElement>('settings'),
   serverUrl: $<HTMLInputElement>('server-url'),
@@ -974,6 +976,76 @@ function penClear(): void {
   penCtx()?.clearRect(0, 0, els.penCanvas.width, els.penCanvas.height);
 }
 
+// ── 獨立電子白板（board-mode）：與疊加畫筆獨立的筆跡 ──
+let boardStrokes: PenStroke[] = [];
+let boardCurrent: PenStroke | null = null;
+let boardLast: { x: number; y: number } = { x: 0, y: 0 };
+
+/** 白板邏輯比例固定 16:9（與教師端 contain 對齊） */
+function boardBox(): { drawW: number; drawH: number; ox: number; oy: number } {
+  const rect = els.boardCanvas.getBoundingClientRect();
+  const srcAr = 16 / 9;
+  const boxAr = rect.width / Math.max(1, rect.height);
+  if (srcAr > boxAr) {
+    const drawH = rect.width / srcAr;
+    return { drawW: rect.width, drawH, ox: 0, oy: (rect.height - drawH) / 2 };
+  }
+  const drawW = rect.height * srcAr;
+  return { drawW, drawH: rect.height, ox: (rect.width - drawW) / 2, oy: 0 };
+}
+
+function boardFit(): void {
+  const rect = els.boardCanvas.getBoundingClientRect();
+  const w = Math.max(1, Math.round(rect.width * (window.devicePixelRatio || 1)));
+  const h = Math.max(1, Math.round(rect.height * (window.devicePixelRatio || 1)));
+  if (els.boardCanvas.width !== w || els.boardCanvas.height !== h) {
+    els.boardCanvas.width = w;
+    els.boardCanvas.height = h;
+    boardRedraw();
+  }
+}
+
+function boardSegment(
+  from: { x: number; y: number },
+  to: { x: number; y: number },
+  color: string,
+  width: number
+): void {
+  const ctx = els.boardCanvas.getContext('2d');
+  if (!ctx) return;
+  boardFit();
+  const scale = window.devicePixelRatio || 1;
+  const { drawW, drawH, ox, oy } = boardBox();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = Math.max(1, width * scale);
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.beginPath();
+  ctx.moveTo((ox + from.x * drawW) * scale, (oy + from.y * drawH) * scale);
+  ctx.lineTo((ox + to.x * drawW) * scale, (oy + to.y * drawH) * scale);
+  ctx.stroke();
+}
+
+function boardRedraw(): void {
+  const ctx = els.boardCanvas.getContext('2d');
+  if (!ctx) return;
+  ctx.clearRect(0, 0, els.boardCanvas.width, els.boardCanvas.height);
+  for (const stroke of boardStrokes) {
+    for (let i = 1; i < stroke.points.length; i++) {
+      boardSegment(stroke.points[i - 1]!, stroke.points[i]!, stroke.color, stroke.width);
+    }
+    if (stroke.points.length === 1) {
+      boardSegment(stroke.points[0]!, stroke.points[0]!, stroke.color, stroke.width);
+    }
+  }
+}
+
+function boardClear(): void {
+  boardStrokes = [];
+  boardCurrent = null;
+  els.boardCanvas.getContext('2d')?.clearRect(0, 0, els.boardCanvas.width, els.boardCanvas.height);
+}
+
 function sendEvt(message: EvtMessage): void {
   const data = JSON.stringify(message);
   if (!evt || evt.readyState !== 'open') {
@@ -1126,6 +1198,48 @@ async function handleControl(raw: unknown): Promise<void> {
       }
       break;
     }
+
+    case 'board-mode': {
+      // 教師開／關獨立電子白板：進入時清空筆跡（開新板）
+      els.boardLayer.hidden = !message.on;
+      if (message.on) boardClear();
+      log('info', message.on ? '老師開啟了電子白板' : '老師關閉了電子白板');
+      break;
+    }
+
+    case 'board-pen': {
+      const pt = {
+        x: Math.min(1, Math.max(0, Number(message.x) || 0)),
+        y: Math.min(1, Math.max(0, Number(message.y) || 0)),
+      };
+      const color = String(message.color ?? '#111111');
+      const width = Number(message.width) || 8;
+      if (message.op === 'down') {
+        boardCurrent = { color, width, points: [pt] };
+        boardLast = pt;
+        boardSegment(pt, pt, color, width);
+      } else if (message.op === 'move' && boardCurrent) {
+        boardSegment(boardLast, pt, boardCurrent.color, boardCurrent.width);
+        boardCurrent.points.push(pt);
+        boardLast = pt;
+      } else if (message.op === 'up') {
+        if (boardCurrent) {
+          boardCurrent.points.push(pt);
+          boardStrokes.push(boardCurrent);
+          boardCurrent = null;
+        }
+      }
+      break;
+    }
+
+    case 'board-clear':
+      boardClear();
+      break;
+
+    case 'board-undo':
+      boardStrokes.pop();
+      boardRedraw();
+      break;
 
     case 'pen': {
       // 教師白板筆：正規化座標按顯示區等比換算後繪製

@@ -62,6 +62,15 @@ export type CtlMessage =
   /** 復原最後一筆（教師端維護筆跡歷史，學生端 pop 後重繪） */
   | { t: 'pen-undo' }
   /**
+   * 獨立電子白板模式：學生機全螢幕白底只顯示筆跡（蓋過廣播畫面）。
+   * 與「pen」疊加標註獨立：座標相對白板（邏輯比例 16:9，兩端 contain 對齊）。
+   * on = 進入（學生端開白板層並清空筆跡）；off = 離開恢復原畫面。
+   */
+  | { t: 'board-mode'; on: boolean }
+  | { t: 'board-pen'; op: 'down' | 'move' | 'up'; color: string; width: number; x: number; y: number }
+  | { t: 'board-clear' }
+  | { t: 'board-undo' }
+  /**
    * 教師開始／停止廣播。
    * `mode` 說明畫面走哪條路：video = 視訊軌；image = 圖片通道逐張。
    * 停止時學生端要立刻「清屏」——只靠 `replaceTrack(null)` 的話，

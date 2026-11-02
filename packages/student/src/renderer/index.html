@@ -17,6 +17,11 @@
       <!-- 白板筆覆蓋層：教師端標註即時重現（座標正規化，按顯示區等比換算） -->
       <canvas id="pen-canvas" class="pen-overlay" hidden></canvas>
 
+      <!-- 獨立電子白板：教師開啟時全螢幕白底，只顯示筆跡（蓋過廣播畫面） -->
+      <div id="board-layer" class="board-layer" hidden>
+        <canvas id="board-canvas" class="board-canvas"></canvas>
+      </div>
+
       <div id="idle" class="idle">
         <!-- 未開始廣播時的底圖：多媒體電腦室使用守則海報（隨 App 打包） -->
         <img id="idle-rules" class="idle-rules" src="rules.png" alt="多媒體電腦室使用守則" />

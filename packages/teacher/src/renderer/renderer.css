@@ -743,3 +743,59 @@ select:disabled {
 #pen-width {
   width: 64px;
 }
+
+/* ───────────── 獨立電子白板 ───────────── */
+
+.board-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 800;
+  background: #ffffff;
+}
+
+.board-layer[hidden] {
+  display: none;
+}
+
+.board-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+  cursor: crosshair;
+}
+
+.board-toolbar {
+  position: absolute;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(23, 29, 41, 0.92);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 8px 14px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
+}
+
+.board-color {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid #6b7689;
+  cursor: pointer;
+  padding: 0;
+  flex: none;
+}
+
+.board-color.active {
+  border-color: #fff;
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.7);
+}
+
+#board-width {
+  width: 64px;
+}
