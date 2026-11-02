@@ -143,6 +143,9 @@ function armIdleTimer(id: string, transfer: FileTransfer): void {
 }
 
 export function registerFileIpc(): void {
+  // 啟動即同步「登入自動啟動」登記：預設開啟，安裝後首次執行就生效
+  //（使用者可隨時在設定中關閉，下次啟動仍會依設定同步）
+  applyAutoStart(getConfig().autoStart);
   ipcMain.handle(IPC.getConfig, () => getConfig());
   ipcMain.handle(IPC.saveConfig, (_event, patch) => {
     const saved = saveConfig(patch);

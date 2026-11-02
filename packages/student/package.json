@@ -68,8 +68,9 @@
     "nsis": {
       "oneClick": true,
       "perMachine": false,
-      "createDesktopShortcut": true,
+      "createDesktopShortcut": false,
       "createStartMenuShortcut": true,
+      "runAfterFinish": true,
       "shortcutName": "教室直播 — 學生機"
     },
     "asar": false,
