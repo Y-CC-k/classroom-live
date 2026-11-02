@@ -345,6 +345,28 @@ export class TeacherSession {
   resetAdaptiveQuality(): void {
     this.adaptiveQualityManager.reset();
   }
+
+  // ─────────────────────────── 多螢幕監控牆 ───────────────────────────
+
+  /** 同時開始監看多台學生機（監控牆用）。回傳實際開始監看的數量。 */
+  watchStudents(peerIds: string[], intervalMs = 3000): number {
+    return this.monitorManager.watchStudents(peerIds, intervalMs);
+  }
+
+  /** 停止單台學生機的監看。 */
+  unwatchStudent(peerId: string): void {
+    this.monitorManager.watchStudent(peerId, false);
+  }
+
+  /** 停止所有監看（監控牆關閉用）。 */
+  unwatchAllStudents(): void {
+    this.monitorManager.unwatchAll();
+  }
+
+  /** 取得目前正在監看的 peerId 列表。 */
+  getWatchingPeerIds(): string[] {
+    return this.monitorManager.getWatchingPeerIds();
+  }
 }
 
 export function describe(error: unknown): string {

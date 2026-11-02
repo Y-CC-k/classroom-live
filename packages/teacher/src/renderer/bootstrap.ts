@@ -4,6 +4,7 @@ import { type CaptureSource, type TeacherConfig } from '../shared/ipc.js';
 import { QUALITY_PRESETS, qualityPresetDef } from '../shared/ipc.js';
 import { createMirrorFixer, type MirrorFixer } from './mirror.js';
 import { TeacherSession, describe } from './webrtc/index.js';
+import { MonitorWall } from './ui/monitor-wall.js';
 
 /**
  * 教師機 renderer：負責所有 UI 與 WebRTC。
@@ -41,6 +42,8 @@ const staleMirrors: MirrorFixer[] = [];
 let broadcastingSourceId: string | null = null;
 /** 遞增權杖：防止非同步的預覽擷取彼此覆蓋。 */
 let previewToken = 0;
+/** 監控牆 UI 組件（由 boot() 初始化） */
+let monitorWall: MonitorWall | null = null;
 
 /** 釋放已經被換掉的鏡像修正器（務必在 `setLocalStream()` 之後呼叫）。 */
 function disposeStaleMirrors(): void {
@@ -145,6 +148,8 @@ const els = {
   monitorMeta: $<HTMLSpanElement>('monitor-meta'),
   monitorImg: $<HTMLImageElement>('monitor-img'),
   btnMonitorStop: $<HTMLButtonElement>('btn-monitor-stop'),
+  btnMonitorWall: $<HTMLButtonElement>('btn-monitor-wall'),
+  monitorWall: $<HTMLDivElement>('monitor-wall'),
 
   // 自適應畫質
   adaptiveQuality: $<HTMLInputElement>('adaptive-quality'),
@@ -604,8 +609,11 @@ let watchingPeer: string | null = null;
 /** 監看窗顯示中的物件 URL（換幀時要收掉避免洩漏） */
 let monitorUrl: string | null = null;
 
-/** 關閉監看：通知學生機停止送圖、收掉浮動窗 */
+/** 關閉監看：通知學生機停止送圖、收掉浮動窗與監控牆 */
 function closeMonitor(): void {
+  if (monitorWall?.isVisible) {
+    monitorWall.hide();
+  }
   if (watchingPeer && session?.isConnected) session.watchStudent(watchingPeer, false);
   watchingPeer = null;
   if (monitorUrl) {
@@ -616,8 +624,14 @@ function closeMonitor(): void {
   els.monitorImg.src = '';
 }
 
-/** 收到一幀監看畫面：只顯示還在監看的那台（不是的話直接丟掉） */
+/** 收到一幀監看畫面：若監控牆可見，送給監控牆；否則顯示單台浮動窗 */
 function showMonitorFrame(peerId: string, frame: { url: string; width: number; height: number; seq: number }): void {
+  // 監控牆優先：若監控牆可見且該台在監看名單內，交給監控牆處理
+  if (monitorWall?.isVisible) {
+    monitorWall.handleWatchFrame(peerId, frame);
+    return;
+  }
+  // 單台浮動窗：只顯示還在監看的那台
   if (watchingPeer !== peerId) {
     URL.revokeObjectURL(frame.url);
     return;
@@ -898,6 +912,9 @@ async function connect(): Promise<void> {
   session.connect();
   els.btnConnect.textContent = '斷線';
   els.btnStart.disabled = false;
+
+  // 初始化監控牆（session 已建立）
+  monitorWall = new MonitorWall(els.monitorWall, session, els.btnMonitorWall);
 
   // 應用自適應畫質設定
   session.setAdaptiveQualityEnabled(els.adaptiveQuality.checked);
@@ -1461,6 +1478,22 @@ function bindEvents(): void {
   });
 
   els.btnClearLog.addEventListener('click', () => els.log.replaceChildren());
+
+  // 監控牆日誌事件（由 MonitorWall 發送）
+  window.addEventListener('monitor-wall-log', (event: Event) => {
+    const customEvent = event as CustomEvent<{ level: 'info' | 'warn' | 'error'; message: string }>;
+    const { level, message } = customEvent.detail;
+    log(level, message);
+  });
+
+  // 監控牆開關按鈕（由 MonitorWall 內部綁定 toggle，這裡只做額外初始化）
+  els.btnMonitorWall.addEventListener('click', () => {
+    // MonitorWall 已在 constructor 處理 toggle，這裡僅確保 session 存在
+    if (!session?.isConnected) {
+      log('warn', '尚未連線；請先按「連線」再開啟監控牆。');
+      if (monitorWall?.isVisible) monitorWall.hide();
+    }
+  });
 
   window.addEventListener('beforeunload', () => {
     session?.disconnect();

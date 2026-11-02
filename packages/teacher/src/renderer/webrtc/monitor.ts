@@ -45,7 +45,7 @@ export class MonitorManager {
 
   /**
    * 對單一台開始／停止監看。
-   * 一開始要跟上一台換台也在這裡做（先停舊台，避免兩台同時送圖）。
+   * 支援多台同時監看（不會自動停掉其他台）。
    */
   watchStudent(peerId: string, on: boolean, intervalMs = 3000): boolean {
     const link = this.links.get(peerId);
@@ -60,6 +60,34 @@ export class MonitorManager {
     }
     this.watchFrames.delete(peerId);
     return true;
+  }
+
+  /**
+   * 同時開始監看多台學生機（監控牆用）。
+   * 回傳實際開始監看的數量。
+   */
+  watchStudents(peerIds: string[], intervalMs = 3000): number {
+    let count = 0;
+    for (const peerId of peerIds) {
+      if (this.watchStudent(peerId, true, intervalMs)) count++;
+    }
+    return count;
+  }
+
+  /** 停止所有監看（監控牆關閉用）。 */
+  unwatchAll(): void {
+    for (const peerId of this.links.keys()) {
+      const link = this.links.get(peerId);
+      if (link?.ctl?.readyState === 'open') {
+        this.sendCtl(peerId, { t: 'watch', on: false });
+      }
+    }
+    this.watchFrames.clear();
+  }
+
+  /** 取得目前正在監看的 peerId 列表（根據 watchFrames 組裝狀態判斷）。 */
+  getWatchingPeerIds(): string[] {
+    return [...this.watchFrames.keys()];
   }
 
   /** 解析 evt 通道收到的監看幀分片 */

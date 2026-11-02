@@ -36,6 +36,9 @@
         <span id="status-dot" class="dot"></span>
         <span id="status-text">未連線</span>
       </div>
+
+      <!-- 監控牆開關：放在頂部工具列右側 -->
+      <button id="btn-monitor-wall" class="btn ghost" title="多螢幕監控牆">🖥 監控牆</button>
     </header>
 
     <main class="layout">
@@ -219,6 +222,9 @@
         </div>
       </section>
     </main>
+
+    <!-- 多螢幕監控牆：開啟時覆蓋顯示多台學生機畫面（每 3 秒一張 JPEG） -->
+    <div id="monitor-wall" class="monitor-wall" hidden></div>
 
     <!-- 單台螢幕監看：3 秒一張的浮動小窗（右下角） -->
     <div id="monitor-viewer" class="monitor-viewer" hidden>
