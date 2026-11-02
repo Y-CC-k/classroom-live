@@ -781,6 +781,8 @@ function refreshMuteButton(): void {
 
 async function connect(): Promise<void> {
   if (session) {
+    // 斷線前先收電子白板：ctl 通道將斷，白板同步會失聯
+    if (boardModeOn) toggleBoardMode();
     monitorWall?.hide();
     session.disconnect();
     session = null;
@@ -1528,6 +1530,8 @@ function toggleBoardMode(): void {
       log('info', '已自動關閉監控牆（白板模式下重新開啟即可）。');
     }
     els.boardLayer.hidden = false;
+    // 白板中不可停廣播：ctl 通道斷了白板會失聯，離開白板後再恢復
+    els.btnStop.disabled = true;
     els.btnBoardMode.textContent = '✕ 結束白板';
     els.btnBoardMode.classList.add('danger');
     boardInstance?.setEnabled(true);
@@ -1537,6 +1541,8 @@ function toggleBoardMode(): void {
     log('info', '電子白板已開啟：學生機全螢幕白板，書寫即時同步。');
   } else {
     els.boardLayer.hidden = true;
+    // 恢復停止鈕狀態：廣播中才可用
+    els.btnStop.disabled = !localStream;
     els.btnBoardMode.textContent = '📝 電子白板';
     els.btnBoardMode.classList.remove('danger');
     boardInstance?.setEnabled(false);
