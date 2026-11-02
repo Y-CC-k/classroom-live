@@ -35,8 +35,8 @@
     "format": "prettier --write .",
     "smoke": "node scripts/smoke-server.mjs && node scripts/smoke-wol.mjs",
     "clean": "node scripts/clean.mjs",
-    "test:e2e": "npx playwright test",
-    "test:e2e:headed": "npx playwright test --headed"
+    "test:e2e": "npx.cmd vitest run --config vitest.e2e.config.ts",
+    "test:e2e:headed": "npx.cmd vitest run --config vitest.e2e.config.ts --reporter=verbose"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

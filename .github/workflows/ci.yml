@@ -185,7 +185,7 @@ jobs:
 
       - name: Install native build prerequisites
         run: |
-          npm.cmd install --workspace @classroom/native node-gyp@^11.4.2
+          npm.cmd install --save-dev node-gyp@^11.4.2 --workspace @classroom/native
 
       - name: Build native prebuild binary
         run: npm.cmd run build:prebuild --workspace @classroom/native
@@ -213,23 +213,29 @@ jobs:
       - name: Install dependencies
         run: npm.cmd install
 
+      - name: Install Playwright browsers
+        run: npx.cmd playwright install --with-deps chromium
+
       - name: Build all packages
         run: npm.cmd run build
 
       - name: Start signaling server
-        run: npm.cmd run dev:server &
+        run: Start-Process npm.cmd -ArgumentList 'run','dev:server' -WindowStyle Hidden -WorkingDirectory '%GITHUB_WORKSPACE%'
         
       - name: Wait for server to be ready
         run: |
-          for i in $(seq 1 30); do
-            if curl -s http://localhost:8787/healthz > /dev/null 2>&1; then
-              echo "Server is ready"
-              exit 0
-            fi
-            sleep 1
-          done
-          echo "Server failed to start"
+          for ($i = 0; $i -lt 30; $i++) {
+            try {
+              $response = Invoke-WebRequest -Uri 'http://localhost:8787/healthz' -TimeoutSec 2 -ErrorAction Stop
+              if ($response.StatusCode -eq 200) {
+                Write-Host 'Server is ready'
+                exit 0
+              }
+            } catch {}
+            Start-Sleep -Seconds 1
+          }
+          Write-Host 'Server failed to start'
           exit 1
 
       - name: Run E2E tests
-        run: npm.cmd run test:e2e
+        run: npx.cmd vitest run --config vitest.e2e.config.ts

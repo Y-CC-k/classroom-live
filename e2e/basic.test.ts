@@ -1,6 +1,9 @@
 /**
  * 教室直播系統 - E2E 測試
  * 測試教師機與學生機的基本連線與廣播功能
+ *
+ * 注意：鎖定（lock）走 WebRTC DataChannel（P2P），不經過信令伺服器，
+ * 因此無法在純 WebSocket 模擬下測試；此處測試 server 支援的訊息路徑。
  */
 
 import { describe, test, expect, beforeAll, afterAll } from 'vitest';
@@ -40,9 +43,10 @@ describe('教室直播系統 E2E 測試', () => {
     expect(peerJoined).toBeTruthy();
   });
 
-  test('學生機應該收到教師加入通知', () => {
-    const peerJoined = student1.messages.find((m: any) => m.t === 'peer-joined' && m.peer.role === 'teacher');
-    expect(peerJoined).toBeTruthy();
+  test('學生機應該在 welcome.peers 中看到教師（後加入者透過 peers 列表得知先加入者）', () => {
+    const welcome = student1.welcome;
+    expect(welcome).toBeTruthy();
+    expect(welcome.peers.some((p: any) => p.role === 'teacher')).toBe(true);
   });
 
   test('教師開始廣播，學生機應該收到廣播開啟訊息', async () => {
@@ -53,8 +57,9 @@ describe('教室直播系統 E2E 測試', () => {
 
     const broadcastMsg = await student1.waitForBroadcast(true, 'video');
     expect(broadcastMsg).toBeTruthy();
-    expect(broadcastMsg.on).toBe(true);
-    expect(broadcastMsg.mode).toBe('video');
+    expect(broadcastMsg.payload.on).toBe(true);
+    expect(broadcastMsg.payload.mode).toBe('video');
+    expect(broadcastMsg.from).toBe(teacher.selfId);
   });
 
   test('教師停止廣播，學生機應該收到停止訊息', async () => {
@@ -65,28 +70,13 @@ describe('教室直播系統 E2E 測試', () => {
 
     const broadcastMsg = await student1.waitForBroadcast(false, 'video');
     expect(broadcastMsg).toBeTruthy();
-    expect(broadcastMsg.on).toBe(false);
+    expect(broadcastMsg.payload.on).toBe(false);
   });
 
-  test('教師鎖定學生機，學生機應該收到鎖定訊息', async () => {
-    teacher.send({
-      t: 'lock',
-      on: true,
-    });
-
-    const lockMsg = await student1.waitForLock(true);
-    expect(lockMsg).toBeTruthy();
-    expect(lockMsg.on).toBe(true);
-  });
-
-  test('教師解除鎖定，學生機應該收到解鎖訊息', async () => {
-    teacher.send({
-      t: 'lock',
-      on: false,
-    });
-
-    const unlockMsg = await student1.waitForLock(false);
-    expect(unlockMsg).toBeTruthy();
-    expect(unlockMsg.on).toBe(false);
+  test('學生不能廣播（角色權限，server 拒絕）', async () => {
+    student1.send({ t: 'broadcast', payload: { on: true, mode: 'video' } });
+    const err = await student1.waitForType('error');
+    expect(err).toBeTruthy();
+    expect(err.code).toBe('role-forbidden');
   });
 });

@@ -7,13 +7,14 @@
 
 import { WebSocket } from 'ws';
 
-const SERVER_URL = 'ws://localhost:8787';
+const SERVER_URL = 'ws://127.0.0.1:8787';
 
 export class TestClient {
   private socket: WebSocket;
   public messages: any[] = [];
   public connected: boolean = false;
   public selfId: string | null = null;
+  public welcome: any = null;
 
   constructor() {
     this.socket = new WebSocket(SERVER_URL);
@@ -36,6 +37,25 @@ export class TestClient {
     });
   }
 
+  /** 等待 WebSocket 連線開啟（在 open 前發送的訊息會被靜默丟棄，必須先等） */
+  waitOpen(timeout = 5000): Promise<void> {
+    if (this.socket.readyState === WebSocket.OPEN) return Promise.resolve();
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(
+        () => reject(new Error(`Timeout waiting for WebSocket open after ${timeout}ms`)),
+        timeout
+      );
+      this.socket.once('open', () => {
+        clearTimeout(timer);
+        resolve();
+      });
+      this.socket.once('error', err => {
+        clearTimeout(timer);
+        reject(err);
+      });
+    });
+  }
+
   waitForMessage(timeout = 5000): Promise<any> {
     return new Promise((resolve, reject) => {
       setTimeout(() => {
@@ -53,6 +73,19 @@ export class TestClient {
     });
   }
 
+  /** 等待指定型別的訊息（輪詢已收到的訊息列表） */
+  async waitForType(type: string, timeout = 5000): Promise<any> {
+    const start = Date.now();
+    while (Date.now() - start < timeout) {
+      const index = this.messages.findIndex((m: any) => m.t === type);
+      if (index >= 0) {
+        return this.messages.splice(index, 1)[0];
+      }
+      await new Promise(r => setTimeout(r, 100));
+    }
+    throw new Error(`Timeout waiting for message type '${type}'`);
+  }
+
   send(message: any) {
     if (this.socket.readyState === WebSocket.OPEN) {
       this.socket.send(JSON.stringify(message));
@@ -64,6 +97,7 @@ export class TestClient {
   }
 
   async hello(role: 'teacher' | 'student', classId: string, name: string) {
+    await this.waitOpen();
     this.send({
       t: 'hello',
       role,
@@ -74,32 +108,24 @@ export class TestClient {
     const welcome = await this.waitForMessage();
     if (welcome.t === 'welcome') {
       this.selfId = welcome.self;
+      this.welcome = welcome;
     }
     return welcome;
   }
 
+  /** 等待廣播訊息（server 轉發格式：{ t: 'broadcast', from, payload: { on, mode } }） */
   async waitForBroadcast(on: boolean, mode: string = 'video', timeout = 5000): Promise<any> {
     const start = Date.now();
     while (Date.now() - start < timeout) {
-      const msg = this.messages.find(m => m.t === 'broadcast' && m.on === on && m.mode === mode);
-      if (msg) {
-        return msg;
+      const index = this.messages.findIndex(
+        (m: any) => m.t === 'broadcast' && m.payload?.on === on && m.payload?.mode === mode
+      );
+      if (index >= 0) {
+        return this.messages.splice(index, 1)[0];
       }
       await new Promise(r => setTimeout(r, 100));
     }
-    throw new Error(`Timeout waiting for broadcast ${on} ${mode}`);
-  }
-
-  async waitForLock(on: boolean, timeout = 5000): Promise<any> {
-    const start = Date.now();
-    while (Date.now() - start < timeout) {
-      const msg = this.messages.find(m => m.t === 'lock' && m.on === on);
-      if (msg) {
-        return msg;
-      }
-      await new Promise(r => setTimeout(r, 100));
-    }
-    throw new Error(`Timeout waiting for lock ${on}`);
+    throw new Error(`Timeout waiting for broadcast on=${on} mode=${mode}`);
   }
 }
 
