@@ -15,7 +15,8 @@ import type { NetworkInfo } from '../shared/ipc.js';
  * 選擇順序：
  * 1. 私有網段（192.168.x.x、10.x.x.x、172.16～172.31.x.x）——校內網段幾乎都是這幾種；
  * 2. 其他非內部（非 127.0.0.1）的 IPv4；
- * 3. 都沒有就退回 127.0.0.1。
+ * 3. 都沒有就退回電腦名稱（os.hostname()）——純 loopback 環境至少老師
+ *    還能從電腦名稱辨認機器，比每台都顯示 127.0.0.1 有用得多。
  *
  * 註：這裡取列舉順序的第一個。同一台機器若同時接了多張網卡
  * （例如有線 + 無線 + VPN／虛擬網卡），可能不會剛好挑到對外那張；
@@ -31,7 +32,7 @@ export function detectLocalIp(): string {
     }
   }
 
-  return candidates.find(isPrivate) ?? candidates[0] ?? '127.0.0.1';
+  return candidates.find(isPrivate) ?? candidates[0] ?? os.hostname();
 }
 
 function isPrivate(address: string): boolean {
