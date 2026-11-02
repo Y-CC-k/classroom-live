@@ -84,6 +84,8 @@
         <div class="row quality-tuning">
           <label>幀率 <input id="quality-fps" type="number" min="1" max="60" step="1" /> fps</label>
           <label>頻寬 <input id="quality-bitrate" type="number" min="0.5" max="30" step="0.5" /> Mbps</label>
+        </div>
+        <div class="row quality-tuning">
           <label>
             尺寸上限
             <select id="quality-size">
@@ -120,17 +122,17 @@
 
         <!-- 白板筆工具列：廣播中才可用；顏色／粗細／復原／清除 -->
         <div class="row whitebar" id="whitebar" hidden>
-          <button class="pen-color active" data-color="#ff3b30" title="紅"></button>
-          <button class="pen-color" data-color="#ffd60a" title="黃"></button>
-          <button class="pen-color" data-color="#34c759" title="綠"></button>
-          <button class="pen-color" data-color="#0a84ff" title="藍"></button>
-          <button class="pen-color" data-color="#ffffff" title="白"></button>
+          <button class="pen-color active" data-color="#ff3b30" style="background:#ff3b30" title="紅"></button>
+          <button class="pen-color" data-color="#ffd60a" style="background:#ffd60a" title="黃"></button>
+          <button class="pen-color" data-color="#34c759" style="background:#34c759" title="綠"></button>
+          <button class="pen-color" data-color="#0a84ff" style="background:#0a84ff" title="藍"></button>
+          <button class="pen-color" data-color="#ffffff" style="background:#ffffff" title="白"></button>
           <select id="pen-width" title="筆粗細">
             <option value="3">細</option>
             <option value="6" selected>中</option>
             <option value="12">粗</option>
           </select>
-          <button id="pen-undo" class="btn tiny ghost" title="復原上一筆">↩</button>
+          <button id="pen-undo" class="btn tiny ghost" title="復原上一筆">↺</button>
           <button id="pen-clear" class="btn tiny danger" title="清除全部筆跡">🗑</button>
         </div>
         <p class="hint">
@@ -163,7 +165,6 @@
             <button id="btn-exec-checked" class="btn tiny ghost">▶ 執行</button>
             <button id="btn-shutdown-checked" class="btn tiny danger">⏻ 關機</button>
             <button id="btn-reboot-checked" class="btn tiny danger">⏻ 重開機</button>
-            <button id="btn-watch-checked" class="btn tiny primary">👁 監看</button>
             <button id="btn-cast-checked" class="btn tiny primary">▶ 直播</button>
             <button id="btn-uncheck-all" class="btn tiny ghost">✕ 取消勾選</button>
           </div>
@@ -293,20 +294,10 @@
           <option value="8" selected>中</option>
           <option value="16">粗</option>
         </select>
-        <button id="board-undo" class="btn tiny ghost" title="復原上一筆">↩</button>
+        <button id="board-undo" class="btn tiny ghost" title="復原上一筆">↺</button>
         <button id="board-clear" class="btn tiny danger" title="清除全部">🗑</button>
         <button id="board-exit" class="btn tiny danger">✕ 結束白板</button>
       </div>
-    </div>
-
-    <!-- 單台螢幕監看：3 秒一張的浮動小窗（右下角） -->
-    <div id="monitor-viewer" class="monitor-viewer" hidden>
-      <div class="monitor-head">
-        <span id="monitor-label">監看中…</span>
-        <span id="monitor-meta" class="muted small"></span>
-        <button id="btn-monitor-stop" class="btn tiny danger">✕ 關閉監看</button>
-      </div>
-      <img id="monitor-img" alt="學生機螢幕（每 3 秒更新一張）" />
     </div>
 
     <script src="renderer.js"></script>

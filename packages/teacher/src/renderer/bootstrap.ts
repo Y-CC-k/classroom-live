@@ -131,7 +131,6 @@ const els = {
   btnExecChecked: $<HTMLButtonElement>('btn-exec-checked'),
   btnShutdownChecked: $<HTMLButtonElement>('btn-shutdown-checked'),
   btnRebootChecked: $<HTMLButtonElement>('btn-reboot-checked'),
-  btnWatchChecked: $<HTMLButtonElement>('btn-watch-checked'),
   btnCastChecked: $<HTMLButtonElement>('btn-cast-checked'),
   btnUncheckAll: $<HTMLButtonElement>('btn-uncheck-all'),
   fileInput: $<HTMLInputElement>('file-input'),
@@ -152,11 +151,6 @@ const els = {
   btnUwfMaintOff: $<HTMLButtonElement>('btn-uwf-maint-off'),
   btnSceneTeach: $<HTMLButtonElement>('btn-scene-teach'),
   btnSceneLearn: $<HTMLButtonElement>('btn-scene-learn'),
-  monitorViewer: $<HTMLDivElement>('monitor-viewer'),
-  monitorLabel: $<HTMLSpanElement>('monitor-label'),
-  monitorMeta: $<HTMLSpanElement>('monitor-meta'),
-  monitorImg: $<HTMLImageElement>('monitor-img'),
-  btnMonitorStop: $<HTMLButtonElement>('btn-monitor-stop'),
   btnMonitorWall: $<HTMLButtonElement>('btn-monitor-wall'),
   monitorWall: $<HTMLDivElement>('monitor-wall'),
 
@@ -406,10 +400,7 @@ function renderQualityControls(): void {
   }
 
   const preset = qualityPresetDef(config.qualityPreset);
-  els.qualityHint.textContent =
-    (preset ? preset.hint : '自訂畫質：下面三個數字是手動設定的。秒差變大時，先降「幀率」與「尺寸上限」最有效。') +
-    // 圖片模式下「幀率／頻寬」用不到，講清楚免得老師白調
-    (config.broadcastMode === 'image' ? '（圖片模式：以「尺寸上限」決定解析度，「幀率／頻寬」不適用）' : '');
+  els.qualityHint.textContent = preset ? preset.hint : '';
 }
 
 /**
@@ -639,82 +630,6 @@ function connectionLabel(state: RTCPeerConnectionState | 'idle'): string {
   }
 }
 
-/** 當前正在監看的學生機（一次一台；null = 沒有在監看） */
-let watchingPeer: string | null = null;
-/** 監看窗顯示中的物件 URL（換幀時要收掉避免洩漏） */
-let monitorUrl: string | null = null;
-
-/** 關閉監看：通知學生機停止送圖、收掉浮動窗與監控牆 */
-function closeMonitor(): void {
-  if (monitorWall?.isVisible) {
-    monitorWall.hide();
-  }
-  if (watchingPeer && session?.isConnected) session.watchStudent(watchingPeer, false);
-  watchingPeer = null;
-  if (monitorUrl) {
-    URL.revokeObjectURL(monitorUrl);
-    monitorUrl = null;
-  }
-  els.monitorViewer.hidden = true;
-  els.monitorImg.src = '';
-}
-
-/** 收到一幀監看畫面：若監控牆可見，送給監控牆；否則顯示單台浮動窗 */
-function showMonitorFrame(peerId: string, frame: { url: string; width: number; height: number; seq: number }): void {
-  // 監控牆優先：若監控牆可見且該台在監看名單內，交給監控牆處理
-  if (monitorWall?.isVisible) {
-    monitorWall.handleWatchFrame(peerId, frame);
-    return;
-  }
-  // 單台浮動窗：只顯示還在監看的那台
-  if (watchingPeer !== peerId) {
-    URL.revokeObjectURL(frame.url);
-    return;
-  }
-  if (monitorUrl) URL.revokeObjectURL(monitorUrl);
-  monitorUrl = frame.url;
-  els.monitorImg.src = frame.url;
-  els.monitorMeta.textContent = `第 ${frame.seq} 張 · ${frame.width}×${frame.height} · 3 秒/張`;
-}
-
-/** 開始監看勾選的那一台（單機功能列的「👁 監看」按鈕） */
-function toggleWatchChecked(): void {
-  if (!session?.isConnected) {
-    log('warn', '尚未連線；請先按「連線」再監看。');
-    return;
-  }
-  if (checkedPeers.size !== 1) {
-    log('warn', '監看一次一台：請只勾選一台（目前已勾 ' + checkedPeers.size + ' 台）。');
-    return;
-  }
-  const peerId = [...checkedPeers][0]!;
-  const student = session.students().find(item => item.info.id === peerId);
-  if (!student) {
-    log('warn', '這台已經離線了。');
-    return;
-  }
-  if (watchingPeer === peerId) {
-    closeMonitor();
-    log('info', '已停止監看。');
-    renderStudents();
-    return;
-  }
-  // 換台：先通知上一台停止，避免兩台同時送圖
-  closeMonitor();
-  if (!session.watchStudent(peerId, true, 3000)) {
-    log('warn', '監看送出失敗：控制通道還沒連上這台。');
-    return;
-  }
-  watchingPeer = peerId;
-  els.monitorViewer.hidden = false;
-  els.monitorLabel.textContent = `監看中：${student.info.name}`;
-  els.monitorMeta.textContent = '等待第一張畫面…（3 秒/張）';
-  log('info', `已開始監看 ${student.info.name}（每 3 秒一張，關閉浮動窗即停止）。`);
-  renderStudents();
-}
-
-// ───────────── 課堂場景鍵：教學活動／學習操作 ─────────────
-
 /** 教學活動場景：廣播中＋全班鎖定＋全班靜音 */
 function refreshSceneButtons(): void {
   const teaching = Boolean(localStream) && Boolean(session?.lockActive) && Boolean(session?.muteActive);
@@ -788,11 +703,6 @@ function renderStudents(): void {
   updateStudentBar();
 
   // 正在監看的那台離線了：自動收掉監看（避免窗一直停在舊畫面）
-  if (watchingPeer && !peerIds.has(watchingPeer)) {
-    const name = session?.students().find(item => item.info.id === watchingPeer)?.info.name ?? watchingPeer;
-    closeMonitor();
-    log('warn', `監看的學生機（${name}）已離線，監看窗已自動關閉。`);
-  }
   refreshSceneButtons();
 
   for (const student of students) {
@@ -841,7 +751,6 @@ function renderStudents(): void {
     const broadcastTagClass = videoArrived ? 'tag ok' : targets?.has(peerId) === false ? 'tag' : 'tag';
     meta.append(tag(broadcastText, broadcastTagClass));
     if (session?.lockActive) meta.append(tag('已鎖定', 'tag err'));
-    if (watchingPeer === peerId) meta.append(tag('👁 正在監看', 'tag ok'));
     if (student.lastError) meta.append(tag(`錯誤：${student.lastError}`, 'tag err'));
 
     card.append(pickLine, meta);
@@ -879,7 +788,7 @@ function refreshMuteButton(): void {
 
 async function connect(): Promise<void> {
   if (session) {
-    closeMonitor();
+    monitorWall?.hide();
     session.disconnect();
     session = null;
     els.btnConnect.textContent = '連線';
@@ -923,7 +832,10 @@ async function connect(): Promise<void> {
       els.pumpStats.textContent = `📡 影像統計：${stats.framesPerSec} 張/秒 · ${stats.kbPerSec} KB/秒（累計 ${stats.frames} 張）— 教師機出口流量`;
     },
     // 單台螢幕監看：每 3 秒一張，組完幀即顯示在右下角浮動小窗
-    onWatchFrame: (peerId, frame) => showMonitorFrame(peerId, frame),
+    onWatchFrame: (peerId, frame) => {
+      if (monitorWall?.isVisible) monitorWall.handleWatchFrame(peerId, frame);
+      else URL.revokeObjectURL(frame.url);
+    },
     onStatus: (status, detail) => {
       switch (status) {
         case 'connected':
@@ -1224,14 +1136,6 @@ function bindEvents(): void {
     }
     renderStudents();
     log('info', `直播：畫面只送勾選的 ${ids.length} 台；標題列可按「回到全班」解除。`);
-  });
-  els.btnWatchChecked.addEventListener('click', () => {
-    toggleWatchChecked();
-  });
-  els.btnMonitorStop.addEventListener('click', () => {
-    closeMonitor();
-    log('info', '已停止監看。');
-    renderStudents();
   });
   els.btnUncheckAll.addEventListener('click', () => {
     checkedPeers.clear();
