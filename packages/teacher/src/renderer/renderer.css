@@ -754,3 +754,74 @@ select:disabled {
 #board-width {
   width: 64px;
 }
+
+/* ───────────── 遠端接管（指導操作） ───────────── */
+.control-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 850;
+  background: #0d1117;
+  display: flex;
+  flex-direction: column;
+}
+
+.control-layer[hidden] {
+  display: none;
+}
+
+.control-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 14px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+}
+
+.control-head #control-label {
+  font-weight: 700;
+  color: var(--warn);
+}
+
+.control-hint {
+  color: var(--muted);
+  font-size: 12px;
+  flex: 1;
+}
+
+.control-stage {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.control-img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  background: #000;
+}
+
+/* 監控牆 🎮 按鈕（hover 顯示） */
+.wall-cell-control {
+  position: absolute;
+  top: 4px;
+  right: 36px;
+  z-index: 3;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  background: rgba(0, 0, 0, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 6px;
+  color: #fff;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px 6px;
+}
+
+.wall-cell:hover .wall-cell-control {
+  opacity: 1;
+}

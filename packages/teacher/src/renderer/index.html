@@ -287,6 +287,18 @@
       </div>
     </div>
 
+    <!-- 遠端接管：全螢幕顯示學生機畫面，教師鍵鼠轉發（指導操作） -->
+    <div id="control-layer" class="control-layer" hidden>
+      <div class="control-head">
+        <span id="control-label">🎮 接管中…</span>
+        <span class="control-hint">ESC 離開接管 · 此時你操作的是學生機</span>
+        <button id="btn-control-exit" class="btn tiny danger">✕ 離開接管</button>
+      </div>
+      <div class="control-stage">
+        <img id="control-img" class="control-img" alt="學生機畫面" />
+      </div>
+    </div>
+
     <script src="renderer.js"></script>
   </body>
 </html>

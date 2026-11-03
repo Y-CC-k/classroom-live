@@ -6,6 +6,7 @@ import { createMirrorFixer, type MirrorFixer } from './mirror.js';
 import { TeacherSession, describe } from './webrtc/index.js';
 import { MonitorWall } from './ui/monitor-wall.js';
 import { Whiteboard } from './ui/whiteboard.js';
+import { codeToVk } from '@classroom/protocol';
 
 /**
  * 教師機 renderer：負責所有 UI 與 WebRTC。
@@ -53,6 +54,8 @@ const whiteboard: Whiteboard | null = null;
 let boardInstance: Whiteboard | null = null;
 /** 電子白板模式是否開啟 */
 let boardModeOn = false;
+/** 遠端接管狀態：接管中的學生機（null = 未接管） */
+let controllingPeer: string | null = null;
 
 /** 釋放已經被換掉的鏡像修正器（務必在 `setLocalStream()` 之後呼叫）。 */
 function disposeStaleMirrors(): void {
@@ -170,6 +173,10 @@ const els = {
   boardEraserTool: $<HTMLButtonElement>('board-tool-eraser'),
   btnCleanFiles: $<HTMLButtonElement>('btn-clean-files'),
   btnSnapshots: $<HTMLButtonElement>('btn-snapshots'),
+  controlLayer: $<HTMLDivElement>('control-layer'),
+  controlLabel: $<HTMLSpanElement>('control-label'),
+  controlImg: $<HTMLImageElement>('control-img'),
+  btnControlExit: $<HTMLButtonElement>('btn-control-exit'),
   btnIdleImage: $<HTMLButtonElement>('btn-idle-image'),
   idleImageLabel: $<HTMLSpanElement>('idle-image-label'),
 
@@ -785,6 +792,8 @@ async function connect(): Promise<void> {
   if (session) {
     // 斷線前先收電子白板：ctl 通道將斷，白板同步會失聯
     if (boardModeOn) toggleBoardMode();
+    // 斷線前結束接管
+    if (controllingPeer) exitControl();
     monitorWall?.hide();
     session.disconnect();
     session = null;
@@ -830,6 +839,13 @@ async function connect(): Promise<void> {
     },
     // 單台螢幕監看：每 3 秒一張，組完幀即顯示在右下角浮動小窗
     onWatchFrame: (peerId, frame) => {
+      if (controllingPeer === peerId) {
+        // 接管中：畫面顯示在控制視窗
+        if (monitorWall?.isVisible) URL.revokeObjectURL(frame.url);
+        else URL.revokeObjectURL(frame.url);
+        els.controlImg.src = frame.url;
+        return;
+      }
       if (monitorWall?.isVisible) monitorWall.handleWatchFrame(peerId, frame);
       else URL.revokeObjectURL(frame.url);
     },
@@ -869,7 +885,8 @@ async function connect(): Promise<void> {
       if (checkedPeers.size > 0) return [...checkedPeers];
       return activeSession.students().map(s => s.info.id);
     },
-    (peerId, name, blob) => void handleSnapshot(peerId, name, blob)
+    (peerId, name, blob) => void handleSnapshot(peerId, name, blob),
+    (peerId, name) => takeControl(peerId, name)
   );
 
   // 白板筆：擷取畫面尺寸來源（video 或 img 預覽）
@@ -1581,6 +1598,64 @@ function bindEvents(): void {
   window.addEventListener('beforeunload', () => {
     session?.disconnect();
   });
+}
+
+/** 正規化滑鼠座標（相對 control-img 的 contain 顯示區） */
+function controlNormalized(e: PointerEvent): { x: number; y: number } {
+  const rect = els.controlImg.getBoundingClientRect();
+  const nw = els.controlImg.naturalWidth;
+  const nh = els.controlImg.naturalHeight;
+  const srcAr = nw > 0 && nh > 0 ? nw / nh : 16 / 9;
+  const boxAr = rect.width / Math.max(1, rect.height);
+  let drawW = rect.width;
+  let drawH = rect.height;
+  let ox = 0;
+  let oy = 0;
+  if (srcAr > boxAr) {
+    drawH = rect.width / srcAr;
+    oy = (rect.height - drawH) / 2;
+  } else {
+    drawW = rect.height * srcAr;
+    ox = (rect.width - drawW) / 2;
+  }
+  return {
+    x: Math.min(1, Math.max(0, (e.clientX - rect.left - ox) / Math.max(1, drawW))),
+    y: Math.min(1, Math.max(0, (e.clientY - rect.top - oy) / Math.max(1, drawH))),
+  };
+}
+
+/** 進入遠端接管：該台切 control 模式＋高頻監看（1 秒/張），教師鍵鼠轉發 */
+function takeControl(peerId: string, name: string): void {
+  if (!session?.isConnected) {
+    log('warn', '尚未連線。');
+    return;
+  }
+  if (!session.controlStart(peerId)) {
+    log('warn', '接管失敗：控制通道尚未連上這台。');
+    return;
+  }
+  controllingPeer = peerId;
+  if (monitorWall?.isVisible) {
+    monitorWall.hide();
+    log('info', '已自動關閉監控牆（接管結束後重新開啟即可）。');
+  }
+  els.controlLayer.hidden = false;
+  els.controlLabel.textContent = '🎮 接管中：' + name;
+  els.controlImg.src = '';
+  // 高頻監看該台（1 秒/張），畫面即時性優先
+  session.watchStudents([peerId], 1000);
+  log('info', `已開始遠端接管 ${name}：你的鍵鼠操作將直接作用在該機。ESC 或按「離開」結束。`);
+}
+
+/** 離開遠端接管 */
+function exitControl(): void {
+  if (!controllingPeer) return;
+  const name = session?.students().find(s => s.info.id === controllingPeer)?.info.name ?? controllingPeer;
+  session?.controlStop(controllingPeer);
+  controllingPeer = null;
+  els.controlLayer.hidden = true;
+  els.controlImg.src = '';
+  log('info', `已離開遠端接管（${name}）。`);
 }
 
 /**

@@ -386,6 +386,22 @@ export class TeacherSession {
     return this.fileTransferManager.sendIdleImage(file);
   }
 
+  /** 進入遠端接管（單台）：送 control 模式，回傳是否成功。 */
+  controlStart(peerId: string): boolean {
+    const link = this.broadcastManager.getLinks().get(peerId);
+    if (link?.ctl?.readyState !== 'open') return false;
+    this.broadcastManager.sendCtl(peerId, { t: 'mode', mode: 'control' });
+    return true;
+  }
+
+  /** 離開遠端接管：送回 monitor 模式。 */
+  controlStop(peerId: string): void {
+    const link = this.broadcastManager.getLinks().get(peerId);
+    if (link?.ctl?.readyState === 'open') {
+      this.broadcastManager.sendCtl(peerId, { t: 'mode', mode: 'monitor' });
+    }
+  }
+
   /** 清空全部已連線學生機的收檔資料夾。回傳已送台數。 */
   cleanFilesAll(): number {
     let sent = 0;

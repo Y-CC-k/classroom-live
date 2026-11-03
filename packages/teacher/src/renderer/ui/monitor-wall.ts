@@ -115,6 +115,9 @@ class WallCell {
   private readonly snapBtn: HTMLButtonElement;
   /** 收藏回調（由 MonitorWall 注入） */
   onSnapshot?: (peerId: string, name: string, blob: Blob) => void;
+  /** 接管回調（由 MonitorWall 注入） */
+  onControl?: (peerId: string, name: string) => void;
+  private readonly controlBtn: HTMLButtonElement;
   private currentUrl: string | null = null;
   /** 最後一幀的 Blob（📸 收藏用） */
   lastBlob: Blob | null = null;
@@ -145,12 +148,23 @@ class WallCell {
     this.snapBtn.className = 'wall-cell-snap';
     this.snapBtn.textContent = '📸';
     this.snapBtn.title = '收藏這張畫面';
+
+    // 🎮 接管按鈕：hover 顯示，點擊進入遠端接管
+    this.controlBtn = document.createElement('button');
+    this.controlBtn.type = 'button';
+    this.controlBtn.className = 'wall-cell-control';
+    this.controlBtn.textContent = '🎮';
+    this.controlBtn.title = '遠端接管（指導操作）';
+    this.controlBtn.addEventListener('click', e => {
+      e.stopPropagation();
+      this.onControl?.(this.peerId, this.nameEl.textContent ?? this.peerId);
+    });
     this.snapBtn.addEventListener('click', e => {
       e.stopPropagation();
       if (this.lastBlob) this.onSnapshot?.(this.peerId, this.nameEl.textContent ?? this.peerId, this.lastBlob);
     });
 
-    this.element.append(this.img, this.nameEl, this.metaEl, this.snapBtn);
+    this.element.append(this.img, this.nameEl, this.metaEl, this.snapBtn, this.controlBtn);
   }
 
   get elementRef(): HTMLElement {
@@ -218,18 +232,22 @@ export class MonitorWall {
   private readonly getWatchTargets: () => string[];
   /** 📸 收藏回調：peerId、學生名、當前幀 Blob */
   private readonly onSnapshot: (peerId: string, name: string, blob: Blob) => void;
+  /** 🎮 接管回調：peerId、學生名 */
+  private readonly onControl: (peerId: string, name: string) => void;
 
   constructor(
     container: HTMLElement,
     session: TeacherSession,
     toggleBtn: HTMLButtonElement,
     getWatchTargets: () => string[],
-    onSnapshot: (peerId: string, name: string, blob: Blob) => void
+    onSnapshot: (peerId: string, name: string, blob: Blob) => void,
+    onControl: (peerId: string, name: string) => void
   ) {
     this.container = container;
     this.session = session;
     this.toggleBtn = toggleBtn;
     this.onSnapshot = onSnapshot;
+    this.onControl = onControl;
     this.getWatchTargets = getWatchTargets;
 
     // 注入樣式
@@ -314,6 +332,7 @@ export class MonitorWall {
       const name = students.find(s => s.info.id === peerId)?.info.name ?? peerId;
       const cell = new WallCell(peerId, name);
       cell.onSnapshot = (pid, nm, blob) => this.onSnapshot(pid, nm, blob);
+      cell.onControl = (pid, nm) => this.onControl(pid, nm);
       this.cells.set(peerId, cell);
       this.container.appendChild(cell.elementRef);
     }
