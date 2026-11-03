@@ -173,6 +173,14 @@ export function initializeApp(): void {
   const enforcer = new BroadcastEnforcer();
   const locker = new InputLocker(line => console.log(line));
 
+  // 教師端鎖定／解除鍵盤滑鼠（低階 hook 封鎖輸入）。
+  // 之前此 handler 缺失，鎖定指令會被靜默丟棄（renderer 端 invoke 拋出
+  // 「No handler registered」卻無人察覺），全班／單機鎖定因此完全無效。
+  ipcMain.handle(IPC.setInputLock, (_event, on: unknown) => {
+    locker.setActive(on === true);
+    return locker.isActive();
+  });
+
   const deps: WindowManagerDeps = {
     enforcer,
     locker,
