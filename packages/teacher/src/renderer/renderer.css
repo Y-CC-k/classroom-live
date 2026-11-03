@@ -846,3 +846,42 @@ select:disabled {
 .wall-cell:hover .wall-cell-snap {
   opacity: 1;
 }
+
+/* ───────────── 遠端接管 UI 加大版（覆蓋先前的較小樣式） ───────────── */
+.control-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.control-head {
+  padding: 12px 20px;
+}
+
+.control-head #control-label {
+  font-size: 20px;
+}
+
+.control-head .control-hint {
+  font-size: 14px;
+}
+
+.control-head #btn-control-exit {
+  padding: 10px 24px;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.wall-cell-snap,
+.wall-cell-control {
+  font-size: 20px;
+  padding: 4px 10px;
+  opacity: 0.9;
+  border-width: 2px;
+}
+
+.wall-cell:hover .wall-cell-snap,
+.wall-cell:hover .wall-cell-control {
+  opacity: 1;
+  transform: scale(1.08);
+}
