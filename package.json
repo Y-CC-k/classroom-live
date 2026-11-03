@@ -22,7 +22,7 @@
     "build:teacher": "npm run build --workspace @classroom/teacher",
     "build:student": "npm run build --workspace @classroom/student",
     "build:sfu": "npm run build --workspace @classroom/sfu",
-    "build": "npm run build:teacher && npm run build:student && npm run build:sfu",
+    "build": "npm run build:protocol && npm run build:teacher && npm run build:student && npm run build:sfu",
     "pack:teacher": "npm run build:teacher && npm run pack --workspace @classroom/teacher",
     "pack:student": "npm run build:student && npm run pack --workspace @classroom/student && npm.cmd run make-upgrade-pack",
     "pack:server": "npm run build:server",
@@ -30,13 +30,14 @@
     "pack:sfu": "npm run build:sfu",
     "pack:all": "npm run build && npm run pack --workspace @classroom/teacher && npm run pack --workspace @classroom/student && npm run pack --workspace @classroom/server-gui",
     "make-upgrade-pack": "node scripts/make-upgrade-pack.mjs",
-    "typecheck": "npm run typecheck --workspace @classroom/protocol && npm run typecheck --workspace @classroom/server && npm run typecheck --workspace @classroom/teacher && npm run typecheck --workspace @classroom/student && npm run typecheck --workspace @classroom/server-gui && npm run typecheck --workspace @classroom/sfu",
+    "typecheck": "npm run build --workspace @classroom/protocol && npm run build --workspace @classroom/sfu && npm run typecheck --workspace @classroom/protocol && npm run typecheck --workspace @classroom/server && npm run typecheck --workspace @classroom/teacher && npm run typecheck --workspace @classroom/student && npm run typecheck --workspace @classroom/server-gui && npm run typecheck --workspace @classroom/sfu",
     "lint": "eslint . --ext .ts,.tsx,.mjs",
     "format": "prettier --write .",
     "smoke": "node scripts/smoke-server.mjs && node scripts/smoke-wol.mjs",
     "clean": "node scripts/clean.mjs",
     "test:e2e": "npx.cmd vitest run --config vitest.e2e.config.ts",
-    "test:e2e:headed": "npx.cmd vitest run --config vitest.e2e.config.ts --reporter=verbose"
+    "test:e2e:headed": "npx.cmd vitest run --config vitest.e2e.config.ts --reporter=verbose",
+    "build:protocol": "npm run build --workspace @classroom/protocol"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
