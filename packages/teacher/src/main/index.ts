@@ -68,6 +68,8 @@ async function createWindow(): Promise<void> {
   });
 
   mainWindow.once('ready-to-show', () => {
+    // 啟動即最大化（填滿螢幕，方便監控牆與多面板操作）
+    mainWindow?.maximize();
     mainWindow?.show();
   });
 
