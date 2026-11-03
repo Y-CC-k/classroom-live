@@ -56,6 +56,28 @@ if (!fs.existsSync(studentDist)) {
   process.exit(1);
 }
 
+// 準備 native 模組（遠端接管用）：找到編譯好的 classroom_input.node 時，
+// 複製進 dist/native/，一起壓進升級包（學生機解壓到 resources/app/native/）
+let nativeReady = false;
+const nativeSources = [
+  path.join(root, 'packages', 'native', 'bin', `win32-x64-${process.versions.modules}`, 'classroom_input.node'),
+  path.join(root, 'packages', 'native', 'bin', 'win32-x64-130', 'classroom_input.node'),
+  path.join(root, 'packages', 'native', 'build', 'Release', 'classroom_input.node'),
+];
+for (const src of nativeSources) {
+  if (fs.existsSync(src)) {
+    const destDir = path.join(studentDist, 'native');
+    fs.mkdirSync(destDir, { recursive: true });
+    fs.copyFileSync(src, path.join(destDir, 'classroom_input.node'));
+    console.log(`[upgrade-pack] 已附上原生模組：${src}`);
+    nativeReady = true;
+    break;
+  }
+}
+if (!nativeReady) {
+  console.log('[upgrade-pack] 警告：找不到 classroom_input.node，此升級包不含遠端接管能力');
+}
+
 // 刪除舊的 zip（如果存在）
 if (fs.existsSync(zipPath)) {
   fs.unlinkSync(zipPath);

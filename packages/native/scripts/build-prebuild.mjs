@@ -40,13 +40,24 @@ function main() {
   const releaseDir = path.join(packageRoot, 'build', 'Release');
   fs.mkdirSync(releaseDir, { recursive: true });
 
-  // 執行 node-gyp 編譯
-  log('執行 node-gyp rebuild …');
-  const result = spawnSync('node-gyp.cmd', ['rebuild'], {
-    cwd: packageRoot,
-    stdio: 'inherit',
-    shell: true,
-  });
+  // 讀 Electron 版本（安裝包內建的 ABI 對應 Electron，不是 Node）
+  const electronPkg = JSON.parse(
+    fs.readFileSync(path.join(packageRoot, '..', '..', 'node_modules', 'electron', 'package.json'), 'utf8')
+  );
+  const electronVersion = electronPkg.version;
+  log('Electron 版本：' + electronVersion + '（ABI 對應 Electron）');
+
+  // 執行 node-gyp 編譯（指定 Electron target 與 headers，產出 Electron 可載入的 .node）
+  log('執行 node-gyp rebuild（Electron target）…');
+  const result = spawnSync(
+    'node-gyp.cmd',
+    ['rebuild', '--target=' + electronVersion, '--dist-url=https://electronjs.org/headers'],
+    {
+      cwd: packageRoot,
+      stdio: 'inherit',
+      shell: true,
+    }
+  );
 
   if (result.status !== 0) {
     warn('node-gyp 編譯失敗。');

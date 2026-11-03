@@ -53,6 +53,16 @@
       {
         "from": "../../docs/教室直播系統_操作與維護說明書.md",
         "to": "docs/教室直播系統_操作與維護說明書.md"
+      },
+      {
+        "from": "../native/build/Release",
+        "to": "native",
+        "filter": ["**/*"]
+      },
+      {
+        "from": "../native/bin/win32-x64-130",
+        "to": "native/prebuilt",
+        "filter": ["**/*"]
       }
     ],
     "win": {

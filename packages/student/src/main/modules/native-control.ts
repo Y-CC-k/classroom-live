@@ -4,6 +4,8 @@
  * 設計原則：**載入失敗不得讓應用程式崩潰**——學生機仍可接收廣播，
  * 只是無法被遠端控制（nativeReady = false，教師端會辨別）。
  */
+import path from 'node:path';
+
 import { ipcMain } from 'electron';
 
 import { loadNative, type MouseButtonName, type NativeBinding } from '@classroom/native';
@@ -14,7 +16,9 @@ let loadError: string | null = null;
 
 /** 載入原生模組（啟動時呼叫一次） */
 export function initNativeControl(): void {
-  const result = loadNative();
+  // appRoot = resources/app：升級包可攜帶 native/classroom_input.node 隨熱更新部署
+  const appRoot = path.join(__dirname, '..', '..');
+  const result = loadNative(appRoot);
   binding = result.binding;
   loadError = result.error?.message ?? null;
   console.log(`[native] ${binding ? `已載入：${result.loadedFrom}` : `未載入：${loadError}`}`);
