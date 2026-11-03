@@ -57,12 +57,16 @@
       {
         "from": "../native/build/Release",
         "to": "native",
-        "filter": ["**/*"]
+        "filter": [
+          "**/*"
+        ]
       },
       {
         "from": "../native/bin/win32-x64-130",
         "to": "native/prebuilt",
-        "filter": ["**/*"]
+        "filter": [
+          "**/*"
+        ]
       }
     ],
     "win": {

@@ -52,6 +52,7 @@ git init
 ```
 
 執行成功後會看到類似訊息：
+
 ```
 Initialized empty Git repository in D:/classroom-live/.git/
 ```
@@ -215,6 +216,7 @@ https://github.com/Y-CC-k/classroom-live
 ### 問題 A：推送失敗，大檔案超過 100 MB
 
 **錯誤訊息範例：**
+
 ```
 remote: error: File dist-electron/student/win-unpacked/教室直播 — 學生機.exe is 180.07 MB; this exceeds GitHub's file size limit of 100.00 MB
 remote: error: GH001: Large files detected.
@@ -320,16 +322,16 @@ git pull
 
 ## 10. 快速參考：完整流程一覽
 
-| 步驟 | 指令 |
-|------|------|
-| 初始化 | `git init` |
+| 步驟       | 指令                                                                               |
+| ---------- | ---------------------------------------------------------------------------------- |
+| 初始化     | `git init`                                                                         |
 | 設定使用者 | `git config --global user.name "名字"`<br>`git config --global user.email "email"` |
-| 建立忽略檔 | 建立 `.gitignore` |
-| 加入檔案 | `git add -A` |
-| 提交 | `git commit -m "訊息"` |
-| 連接遠端 | `git remote add origin https://github.com/Y-CC-k/classroom-live.git` |
-| 設定分支 | `git branch -M main` |
-| 推送 | `git push -u origin main` |
+| 建立忽略檔 | 建立 `.gitignore`                                                                  |
+| 加入檔案   | `git add -A`                                                                       |
+| 提交       | `git commit -m "訊息"`                                                             |
+| 連接遠端   | `git remote add origin https://github.com/Y-CC-k/classroom-live.git`               |
+| 設定分支   | `git branch -M main`                                                               |
+| 推送       | `git push -u origin main`                                                          |
 
 ---
 

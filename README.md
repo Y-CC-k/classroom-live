@@ -10,12 +10,12 @@
 
 ### 核心功能
 
-| 模組 | 主要功能 |
-|------|----------|
-| **教師機** | 螢幕廣播、學生監看、遠端鍵鼠控制、鎖定、檔案傳送、升級、關機/重開機、UWF 遙控 |
-| **學生機** | 接收廣播畫面、接受遠端控制、緊急解鎖 (Ctrl+Alt+Shift+Esc)、檔案接收 |
-| **伺服器** | 房間（班級）管理、WebRTC 信令轉發、心跳偵測、空房間回收 |
-| **伺服器 GUI** | 圖形化啟動/停止伺服器、線上統計監控 |
+| 模組           | 主要功能                                                                      |
+| -------------- | ----------------------------------------------------------------------------- |
+| **教師機**     | 螢幕廣播、學生監看、遠端鍵鼠控制、鎖定、檔案傳送、升級、關機/重開機、UWF 遙控 |
+| **學生機**     | 接收廣播畫面、接受遠端控制、緊急解鎖 (Ctrl+Alt+Shift+Esc)、檔案接收           |
+| **伺服器**     | 房間（班級）管理、WebRTC 信令轉發、心跳偵測、空房間回收                       |
+| **伺服器 GUI** | 圖形化啟動/停止伺服器、線上統計監控                                           |
 
 ---
 
@@ -56,12 +56,12 @@ classroom-live/
 
 ### 系統需求
 
-| 項目 | 需求 |
-|------|------|
-| Node.js | ≥ 20 |
-| 作業系統 | Windows 10 / 11（僅支援 Windows） |
+| 項目         | 需求                                                         |
+| ------------ | ------------------------------------------------------------ |
+| Node.js      | ≥ 20                                                         |
+| 作業系統     | Windows 10 / 11（僅支援 Windows）                            |
 | 編譯原生模組 | Visual Studio Build Tools 2022（C++ 桌面開發）＋ Python 3.9+ |
-| 執行權限 | 建議以系統管理員身分執行學生機 |
+| 執行權限     | 建議以系統管理員身分執行學生機                               |
 
 ### 安裝步驟
 
@@ -82,17 +82,17 @@ npm.cmd run build:native
 
 ## 4. 開發指令
 
-| 指令 | 說明 |
-|------|------|
-| `npm.cmd run typecheck` | 檢查所有套件的 TypeScript 類型 |
-| `npm.cmd run lint` | 執行 ESLint 程式碼檢查 |
-| `npm.cmd run format` | 執行 Prettier 程式碼格式化 |
-| `npm.cmd run smoke` | 執行伺服器與 Wake-on-LAN 冒煙測試 |
-| `npm.cmd run build` | 建置教師機與學生機 |
-| `npm.cmd run build:teacher` | 僅建置教師機 |
-| `npm.cmd run build:student` | 僅建置學生機 |
-| `npm.cmd run pack:all` | 打包所有安裝包（教師 + 學生 + 伺服器 GUI） |
-| `npm.cmd run make-upgrade-pack` | 製作學生機升級包 |
+| 指令                            | 說明                                       |
+| ------------------------------- | ------------------------------------------ |
+| `npm.cmd run typecheck`         | 檢查所有套件的 TypeScript 類型             |
+| `npm.cmd run lint`              | 執行 ESLint 程式碼檢查                     |
+| `npm.cmd run format`            | 執行 Prettier 程式碼格式化                 |
+| `npm.cmd run smoke`             | 執行伺服器與 Wake-on-LAN 冒煙測試          |
+| `npm.cmd run build`             | 建置教師機與學生機                         |
+| `npm.cmd run build:teacher`     | 僅建置教師機                               |
+| `npm.cmd run build:student`     | 僅建置學生機                               |
+| `npm.cmd run pack:all`          | 打包所有安裝包（教師 + 學生 + 伺服器 GUI） |
+| `npm.cmd run make-upgrade-pack` | 製作學生機升級包                           |
 
 ### 開發模式啟動
 
@@ -130,16 +130,16 @@ npm.cmd run make-upgrade-pack
 
 ## 6. 目錄架構說明
 
-| 目錄 | 說明 |
-|------|------|
-| `packages/protocol/` | 共用通訊協定與型別（供伺服器與兩端 Electron 共用） |
-| `packages/server/` | 信令伺服器（Node.js + ws，只轉發 SDP/ICE） |
-| `packages/server-gui/` | Electron 包裝的伺服器管理 GUI |
-| `packages/native/` | Windows 原生層（SendInput 注入 + 低階鉤子） |
-| `packages/teacher/` | 教師機 Electron 應用 |
-| `packages/student/` | 學生機 Electron 應用 |
-| `scripts/` | 建置、打包、煙霧測試腳本 |
-| `docs/` | 操作與維護說明書 |
+| 目錄                   | 說明                                               |
+| ---------------------- | -------------------------------------------------- |
+| `packages/protocol/`   | 共用通訊協定與型別（供伺服器與兩端 Electron 共用） |
+| `packages/server/`     | 信令伺服器（Node.js + ws，只轉發 SDP/ICE）         |
+| `packages/server-gui/` | Electron 包裝的伺服器管理 GUI                      |
+| `packages/native/`     | Windows 原生層（SendInput 注入 + 低階鉤子）        |
+| `packages/teacher/`    | 教師機 Electron 應用                               |
+| `packages/student/`    | 學生機 Electron 應用                               |
+| `scripts/`             | 建置、打包、煙霧測試腳本                           |
+| `docs/`                | 操作與維護說明書                                   |
 
 ---
 

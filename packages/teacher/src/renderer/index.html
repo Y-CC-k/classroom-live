@@ -152,7 +152,7 @@
             <button id="btn-cast-checked" class="btn tiny primary">▶ 直播</button>
             <button id="btn-uncheck-all" class="btn tiny ghost">✕ 取消勾選</button>
           </div>
-                  </div>
+        </div>
       </section>
 
       <!-- 右欄（2）：工作設定（推播／檔案／升級／秩序）＋ 事件記錄 -->
@@ -213,12 +213,7 @@
             <button id="btn-idle-screen" class="btn primary">更新</button>
           </div>
           <div class="row">
-            <input
-              id="idle-image-input"
-              type="file"
-              accept="image/png,image/jpeg,image/webp"
-              hidden
-            />
+            <input id="idle-image-input" type="file" accept="image/png,image/jpeg,image/webp" hidden />
             <button id="btn-idle-image" class="btn ghost">🖼 更換待機圖…</button>
             <span id="idle-image-label" class="count grow">未選擇圖片（取代學生機內建守則海報）</span>
           </div>
@@ -266,10 +261,10 @@
     <div id="board-layer" class="board-layer" hidden>
       <canvas id="board-canvas" class="board-canvas"></canvas>
       <div class="board-toolbar">
-        <button class="board-color active" data-color="#111111" style="background:#111111" title="黑"></button>
-        <button class="board-color" data-color="#e11d2e" style="background:#e11d2e" title="紅"></button>
-        <button class="board-color" data-color="#0a84ff" style="background:#0a84ff" title="藍"></button>
-        <button class="board-color" data-color="#34c759" style="background:#34c759" title="綠"></button>
+        <button class="board-color active" data-color="#111111" style="background: #111111" title="黑"></button>
+        <button class="board-color" data-color="#e11d2e" style="background: #e11d2e" title="紅"></button>
+        <button class="board-color" data-color="#0a84ff" style="background: #0a84ff" title="藍"></button>
+        <button class="board-color" data-color="#34c759" style="background: #34c759" title="綠"></button>
         <button id="board-tool-pen" class="btn tiny ghost active" title="畫筆">✏</button>
         <button id="board-tool-eraser" class="btn tiny ghost" title="橡皮擦">🧽</button>
         <select id="board-width" title="筆粗細">

@@ -221,7 +221,7 @@ jobs:
 
       - name: Start signaling server
         run: Start-Process npm.cmd -ArgumentList 'run','dev:server' -WindowStyle Hidden -WorkingDirectory '%GITHUB_WORKSPACE%'
-        
+
       - name: Wait for server to be ready
         run: |
           for ($i = 0; $i -lt 30; $i++) {
