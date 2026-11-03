@@ -21,6 +21,8 @@ export const IPC = {
   saveSnapshot: 'teacher:save-snapshot',
   /** 以檔案總管開啟收藏資料夾 */
   openSnapshotsFolder: 'teacher:open-snapshots-folder',
+  /** 視窗全螢幕切換（電子白板／監控牆開啟時） */
+  setFullscreen: 'teacher:set-fullscreen',
 } as const;
 
 export interface CaptureSource {
@@ -253,6 +255,8 @@ export interface TeacherApi {
   saveSnapshot(studentName: string, dataBase64: string): Promise<{ ok: boolean; path?: string; message?: string }>;
   /** 以檔案總管開啟收藏資料夾 */
   openSnapshotsFolder(): Promise<string>;
+  /** 視窗全螢幕切換 */
+  setFullscreen(on: boolean): Promise<boolean>;
 }
 
 declare global {

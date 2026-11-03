@@ -31,6 +31,7 @@ const api: TeacherApi = {
       message?: string;
     }>,
   openSnapshotsFolder: () => ipcRenderer.invoke(IPC.openSnapshotsFolder) as Promise<string>,
+  setFullscreen: (on: boolean) => ipcRenderer.invoke(IPC.setFullscreen, on) as Promise<boolean>,
 };
 
 contextBridge.exposeInMainWorld('teacherApi', api);

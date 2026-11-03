@@ -887,7 +887,8 @@ async function connect(): Promise<void> {
       return activeSession.students().map(s => s.info.id);
     },
     (peerId, name, blob) => void handleSnapshot(peerId, name, blob),
-    (peerId, name) => takeControl(peerId, name)
+    (peerId, name) => takeControl(peerId, name),
+    (visible) => void window.teacherApi.setFullscreen(visible),
   );
 
   // 白板筆：擷取畫面尺寸來源（video 或 img 預覽）
@@ -1710,6 +1711,7 @@ function takeControl(peerId: string, name: string): void {
   els.controlLayer.hidden = false;
   els.controlLabel.textContent = '🎮 接管中：' + name;
   els.controlImg.src = '';
+  void window.teacherApi.setFullscreen(true);
   // 高頻監看該台（1 秒/張），畫面即時性優先
   session.watchStudents([peerId], 1000);
   log('info', `已開始遠端接管 ${name}：你的鍵鼠操作將直接作用在該機。ESC 或按「離開」結束。`);
@@ -1727,6 +1729,7 @@ function exitControl(): void {
   controllingPeer = null;
   els.controlLayer.hidden = true;
   els.controlImg.src = '';
+  void window.teacherApi.setFullscreen(false);
   log('info', `已離開遠端接管（${name}）。`);
 }
 
@@ -1751,6 +1754,7 @@ function toggleBoardMode(): void {
     // 白板中不可停廣播：ctl 通道斷了白板會失聯，離開白板後再恢復
     els.btnStop.disabled = true;
     els.btnBoardMode.textContent = '✕ 結束白板';
+    void window.teacherApi.setFullscreen(true);
     els.btnBoardMode.classList.add('danger');
     boardInstance?.setEnabled(true);
     boardInstance?.clear(false); // 開新板：本地清空
@@ -1762,6 +1766,7 @@ function toggleBoardMode(): void {
     // 恢復停止鈕狀態：廣播中才可用
     els.btnStop.disabled = !localStream;
     els.btnBoardMode.textContent = '📝 電子白板';
+    void window.teacherApi.setFullscreen(false);
     els.btnBoardMode.classList.remove('danger');
     boardInstance?.setEnabled(false);
     boardInstance?.clear(false);

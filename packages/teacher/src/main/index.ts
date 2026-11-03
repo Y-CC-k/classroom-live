@@ -130,6 +130,12 @@ if (!gotLock) {
   app.whenReady().then(async () => {
     registerIpc();
     registerSnapshotIpc();
+
+    ipcMain.handle(IPC.setFullscreen, (_event, on: unknown) => {
+      const enable = on === true;
+      if (mainWindow && mainWindow.isFullScreen() !== enable) mainWindow.setFullScreen(enable);
+      return Boolean(mainWindow?.isFullScreen());
+    });
     await createWindow();
 
     app.on('activate', async () => {

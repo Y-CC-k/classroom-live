@@ -234,6 +234,8 @@ export class MonitorWall {
   private readonly onSnapshot: (peerId: string, name: string, blob: Blob) => void;
   /** 🎮 接管回調：peerId、學生名 */
   private readonly onControl: (peerId: string, name: string) => void;
+  /** 監控牆顯示／隱藏時同步視窗全螢幕 */
+  private readonly onVisibilityChange: (visible: boolean) => void;
 
   constructor(
     container: HTMLElement,
@@ -241,13 +243,15 @@ export class MonitorWall {
     toggleBtn: HTMLButtonElement,
     getWatchTargets: () => string[],
     onSnapshot: (peerId: string, name: string, blob: Blob) => void,
-    onControl: (peerId: string, name: string) => void
+    onControl: (peerId: string, name: string) => void,
+    onVisibilityChange: (visible: boolean) => void
   ) {
     this.container = container;
     this.session = session;
     this.toggleBtn = toggleBtn;
     this.onSnapshot = onSnapshot;
     this.onControl = onControl;
+    this.onVisibilityChange = onVisibilityChange;
     this.getWatchTargets = getWatchTargets;
 
     // 注入樣式
@@ -293,6 +297,7 @@ export class MonitorWall {
     this.toggleBtn.classList.add('danger');
     this.renderGrid();
     this.log('info', `監控牆已開啟，監看 ${this.cells.size} 台`);
+    this.onVisibilityChange(true);
   }
 
   /** 隱藏監控牆並停止所有監看 */
@@ -307,6 +312,7 @@ export class MonitorWall {
     this.toggleBtn.textContent = '🖥 監控牆';
     this.toggleBtn.classList.remove('danger');
     this.log('info', '監控牆已關閉');
+    this.onVisibilityChange(false);
   }
 
   /** 設定監看名單（會立即開始監看這些學生） */
