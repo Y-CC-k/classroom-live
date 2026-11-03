@@ -899,3 +899,12 @@ select:disabled {
 .control-head #control-label {
   white-space: nowrap;
 }
+
+/* ── 修正：圖片佔剩餘空間，名稱列不再被擠出格子 ── */
+.wall-cell img {
+  flex: 1;
+  min-height: 0;
+  height: auto;
+  width: 100%;
+  object-fit: contain;
+}
