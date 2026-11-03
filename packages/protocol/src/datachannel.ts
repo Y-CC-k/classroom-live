@@ -29,7 +29,7 @@ export type CtlMessage =
    * 這樣教師 1920x1080 對 學生 2560x1440 也能正確定位。
    */
   | { t: 'mouse-move'; x: number; y: number }
-  | { t: 'mouse-button'; button: MouseButton; down: boolean }
+  | { t: 'mouse-button'; button: MouseButton; down: boolean; x?: number; y?: number }
   | { t: 'mouse-wheel'; dy: number; dx?: number }
   /** vk 為 Windows Virtual-Key code（由教師端用 keymap.ts 轉換） */
   | { t: 'key'; vk: number; down: boolean }

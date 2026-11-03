@@ -1522,6 +1522,73 @@ function bindEvents(): void {
     log('info', `已開啟收藏資料夾：${dir}`);
   });
 
+  // ── 遠端接管：鍵鼠轉發 ──
+  els.controlImg.addEventListener('pointerdown', e => {
+    if (!controllingPeer) return;
+    e.preventDefault();
+    const p = controlNormalized(e);
+    session?.sendCtl(controllingPeer, {
+      t: 'mouse-button',
+      button: e.button === 2 ? 'right' : e.button === 1 ? 'middle' : 'left',
+      down: true,
+      x: p.x,
+      y: p.y,
+    });
+  });
+  els.controlImg.addEventListener('pointerup', e => {
+    if (!controllingPeer) return;
+    const p = controlNormalized(e);
+    session?.sendCtl(controllingPeer, {
+      t: 'mouse-button',
+      button: e.button === 2 ? 'right' : e.button === 1 ? 'middle' : 'left',
+      down: false,
+      x: p.x,
+      y: p.y,
+    });
+  });
+  let lastCtlMove = 0;
+  els.controlImg.addEventListener('pointermove', e => {
+    if (!controllingPeer) return;
+    const now = performance.now();
+    if (now - lastCtlMove < 30) return;
+    lastCtlMove = now;
+    const p = controlNormalized(e);
+    session?.sendCtl(controllingPeer, { t: 'mouse-move', x: p.x, y: p.y });
+  });
+  els.controlImg.addEventListener(
+    'wheel',
+    e => {
+      if (!controllingPeer) return;
+      e.preventDefault();
+      session?.sendCtl(controllingPeer, { t: 'mouse-wheel', dy: Math.sign(e.deltaY) });
+    },
+    { passive: false }
+  );
+  els.controlImg.addEventListener('contextmenu', e => e.preventDefault());
+
+  // 鍵盤轉發（接管中；ESC 離開）
+  window.addEventListener('keydown', e => {
+    if (!controllingPeer) return;
+    if (e.key === 'Escape') {
+      exitControl();
+      return;
+    }
+    const vk = codeToVk(e.code);
+    if (vk === null) return;
+    e.preventDefault();
+    session?.sendCtl(controllingPeer, { t: 'key', vk, down: true });
+  });
+  window.addEventListener('keyup', e => {
+    if (!controllingPeer) return;
+    const vk = codeToVk(e.code);
+    if (vk === null) return;
+    e.preventDefault();
+    session?.sendCtl(controllingPeer, { t: 'key', vk, down: false });
+  });
+
+  // 離開接管按鈕
+  els.btnControlExit.addEventListener('click', () => exitControl());
+
   // ── 清理全班收檔夾（雙確認，仿全班關機）──
   let cleanPhase: 'idle' | 'arm' = 'idle';
   let cleanTimer: number | null = null;
