@@ -825,3 +825,24 @@ select:disabled {
 .wall-cell:hover .wall-cell-control {
   opacity: 1;
 }
+
+/* 監控牆 📸 收藏按鈕：hover 格子才顯示 */
+.wall-cell-snap {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  z-index: 3;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  background: rgba(0, 0, 0, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 6px;
+  color: #fff;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px 6px;
+}
+
+.wall-cell:hover .wall-cell-snap {
+  opacity: 1;
+}
