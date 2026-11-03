@@ -888,7 +888,7 @@ async function connect(): Promise<void> {
     },
     (peerId, name, blob) => void handleSnapshot(peerId, name, blob),
     (peerId, name) => takeControl(peerId, name),
-    (visible) => void window.teacherApi.setFullscreen(visible),
+    visible => void window.teacherApi.setFullscreen(visible)
   );
 
   // 白板筆：擷取畫面尺寸來源（video 或 img 預覽）
