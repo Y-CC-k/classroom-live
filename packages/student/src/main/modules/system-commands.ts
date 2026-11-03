@@ -3,7 +3,10 @@ import path from 'node:path';
 import { execFile, spawn } from 'node:child_process';
 import { ipcMain } from 'electron';
 
+import { shell } from 'electron';
+
 import { IPC } from '../../shared/ipc.js';
+import { detectNetworkInfo } from '../local-ip.js';
 
 export function registerSystemCommandsIpc(): void {
   let shutdownPending = false;
@@ -90,6 +93,26 @@ export function registerSystemCommandsIpc(): void {
       return { ok: false, message };
     }
   });
+
+  ipcMain.handle(IPC.openUrl, async (_event, rawUrl: unknown): Promise<boolean> => {
+    const url = String(rawUrl ?? '');
+    if (!/^https?:\/\//i.test(url)) return false;
+    await shell.openExternal(url);
+    return true;
+  });
+
+  ipcMain.handle(IPC.closeBrowsers, async (): Promise<boolean> => {
+    for (const name of ['chrome.exe', 'msedge.exe']) {
+      try {
+        execFile('taskkill', ['/F', '/T', '/IM', name], () => undefined);
+      } catch {
+        /* 程序可能已不存在 */
+      }
+    }
+    return true;
+  });
+
+  ipcMain.handle(IPC.networkInfo, () => detectNetworkInfo());
 
   ipcMain.handle(IPC.getScreenSource, async () => {
     const { desktopCapturer } = await import('electron');

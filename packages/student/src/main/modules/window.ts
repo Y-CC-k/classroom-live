@@ -181,6 +181,22 @@ export function initializeApp(): void {
     return locker.isActive();
   });
 
+  ipcMain.handle(IPC.setBroadcastMode, (_event, on: unknown) => {
+    enforcer.setActive(on === true);
+    return enforcer.isActive();
+  });
+
+  ipcMain.handle(IPC.setMuted, async (_event, on: unknown): Promise<boolean> => {
+    return enforcer.setMuted(on === true);
+  });
+
+  ipcMain.handle(IPC.setFullscreen, (_event, on: unknown) => {
+    const enable = on === true;
+    const win = mainWindow;
+    if (win && win.isFullScreen() !== enable) win.setFullScreen(enable);
+    return Boolean(win && win.isFullScreen());
+  });
+
   const deps: WindowManagerDeps = {
     enforcer,
     locker,
