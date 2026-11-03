@@ -56,6 +56,7 @@ let boardInstance: Whiteboard | null = null;
 let boardModeOn = false;
 /** 遠端接管狀態：接管中的學生機（null = 未接管） */
 let controllingPeer: string | null = null;
+let controlImgUrl: string | null = null;
 
 /** 釋放已經被換掉的鏡像修正器（務必在 `setLocalStream()` 之後呼叫）。 */
 function disposeStaleMirrors(): void {
@@ -840,9 +841,9 @@ async function connect(): Promise<void> {
     // 單台螢幕監看：每 3 秒一張，組完幀即顯示在右下角浮動小窗
     onWatchFrame: (peerId, frame) => {
       if (controllingPeer === peerId) {
-        // 接管中：畫面顯示在控制視窗
-        if (monitorWall?.isVisible) URL.revokeObjectURL(frame.url);
-        else URL.revokeObjectURL(frame.url);
+        // 接管中：顯示在控制視窗（先收掉上一幀的 URL，順序不能反）
+        if (controlImgUrl) URL.revokeObjectURL(controlImgUrl);
+        controlImgUrl = frame.url;
         els.controlImg.src = frame.url;
         return;
       }
@@ -1717,6 +1718,10 @@ function takeControl(peerId: string, name: string): void {
 /** 離開遠端接管 */
 function exitControl(): void {
   if (!controllingPeer) return;
+  if (controlImgUrl) {
+    URL.revokeObjectURL(controlImgUrl);
+    controlImgUrl = null;
+  }
   const name = session?.students().find(s => s.info.id === controllingPeer)?.info.name ?? controllingPeer;
   session?.controlStop(controllingPeer);
   controllingPeer = null;
