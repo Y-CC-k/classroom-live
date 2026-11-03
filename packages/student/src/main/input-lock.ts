@@ -137,6 +137,11 @@ export class InputLocker {
       child.once('exit', code => {
         if (this.active) this.log(`[lock] 輸入封鎖行程結束（code=${code ?? 'null'}）`);
       });
+      // 診斷：PowerShell 錯誤（Add-Type 失敗等）會出現在 stderr——顯示到學生日誌
+      child.stderr?.on('data', (chunk: Buffer) => {
+        const t = String(chunk).trim();
+        if (t) this.log(`[lock][ps] ${t.split('\n')[0]?.substring(0, 120) ?? ''}`);
+      });
       // 開頭會印一列 HOOK 1/1，用來記錄兩個 hook 是否都安裝成功
       child.stdout?.once('data', (chunk: Buffer) => {
         this.log(`[lock] ${String(chunk).split('\n')[0]?.trim() ?? ''}`);
