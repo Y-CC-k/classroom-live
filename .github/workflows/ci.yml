@@ -168,7 +168,7 @@ jobs:
 
   native-prebuild:
     name: Build Native Prebuild
-    runs-on: windows-latest
+    runs-on: windows-2022
     needs: [typecheck]
     steps:
       - name: Checkout repository
@@ -189,6 +189,8 @@ jobs:
 
       - name: Build native prebuild binary
         run: npm.cmd run build:prebuild --workspace @classroom/native
+        env:
+          GYP_MSVS_VERSION: '2022'
 
       - name: Upload native prebuild binary
         uses: actions/upload-artifact@v4
