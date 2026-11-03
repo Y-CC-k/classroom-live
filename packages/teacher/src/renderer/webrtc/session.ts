@@ -136,7 +136,9 @@ export class TeacherSession {
   }
 
   lockStudent(peerId: string, on: boolean): boolean {
-    return this.controlManager.lockStudent(peerId, on);
+    const ok = this.controlManager.lockStudent(peerId, on);
+    if (ok && on) this.broadcastManager.setLockOn(true); // 單台鎖定也登記意圖（重連補送不漏鎖）
+    return ok;
   }
 
   get muteActive(): boolean {
@@ -144,6 +146,7 @@ export class TeacherSession {
   }
 
   muteAll(on: boolean): number {
+    this.broadcastManager.setMuteOn(on);
     return this.controlManager.muteAll(on);
   }
 
