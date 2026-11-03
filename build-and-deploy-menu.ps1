@@ -1,4 +1,4 @@
-﻿[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 Set-Location $PSScriptRoot
 
 $deployDir = "C:\deploy"
@@ -98,6 +98,16 @@ function New-UpgradeZip {
             New-Item -ItemType Directory -Path $stage -Force | Out-Null
             Get-ChildItem -Path $appDirPath -Force | Where-Object { $_.Name -ne "config.json" } | ForEach-Object {
                 Copy-Item $_.FullName -Destination (Join-Path $stage $_.Name) -Recurse -Force
+            }
+            # 附上原生模組（遠端接管用）
+            $nativeSrc = Join-Path $PSScriptRoot "packages\native\bin\win32-x64-130\classroom_input.node"
+            if (Test-Path $nativeSrc) {
+                $nativeDir = Join-Path $stage "native"
+                New-Item -ItemType Directory -Path $nativeDir -Force | Out-Null
+                Copy-Item $nativeSrc -Destination (Join-Path $nativeDir "classroom_input.node") -Force
+                Write-Host "  已附上原生模組（classroom_input.node）" -ForegroundColor Gray
+            } else {
+                Write-Host "  [提醒] 找不到原生模組，此升級包不含遠端接管" -ForegroundColor Yellow
             }
             Compress-Archive -Path (Join-Path $stage "*") -DestinationPath $zipOut -CompressionLevel Optimal -Force -ErrorAction Stop
             Remove-Item $stage -Recurse -Force -ErrorAction SilentlyContinue
