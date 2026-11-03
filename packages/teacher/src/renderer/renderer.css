@@ -885,3 +885,17 @@ select:disabled {
   opacity: 1;
   transform: scale(1.08);
 }
+
+/* ── 修正：按鈕加大後的重疊與擠壓 ── */
+.wall-cell-control {
+  right: 56px;
+}
+
+.control-head {
+  flex-wrap: wrap;
+  row-gap: 6px;
+}
+
+.control-head #control-label {
+  white-space: nowrap;
+}
