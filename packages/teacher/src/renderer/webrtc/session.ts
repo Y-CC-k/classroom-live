@@ -389,6 +389,11 @@ export class TeacherSession {
     return this.fileTransferManager.sendIdleImage(file);
   }
 
+  /** 該台目前是否處於鎖定狀態（按鈕切換顯示用） */
+  isPeerLocked(peerId: string): boolean {
+    return this.controlManager.isLocked(peerId);
+  }
+
   /** 進入遠端接管（單台）：送 control 模式，回傳是否成功。 */
   controlStart(peerId: string): boolean {
     const link = this.broadcastManager.getLinks().get(peerId);

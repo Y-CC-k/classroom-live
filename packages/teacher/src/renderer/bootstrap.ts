@@ -129,7 +129,6 @@ const els = {
   perStudentBar: $<HTMLDivElement>('per-student-bar'),
   checkedCount: $<HTMLSpanElement>('checked-count'),
   btnLockChecked: $<HTMLButtonElement>('btn-lock-checked'),
-  btnUnlockChecked: $<HTMLButtonElement>('btn-unlock-checked'),
   btnFileChecked: $<HTMLButtonElement>('btn-file-checked'),
   btnUrlChecked: $<HTMLButtonElement>('btn-url-checked'),
   btnExecChecked: $<HTMLButtonElement>('btn-exec-checked'),
@@ -144,7 +143,6 @@ const els = {
   execPath: $<HTMLInputElement>('exec-path'),
   execArgs: $<HTMLInputElement>('exec-args'),
   btnLock: $<HTMLButtonElement>('btn-lock'),
-  btnUnlock: $<HTMLButtonElement>('btn-unlock'),
   btnShutdown: $<HTMLButtonElement>('btn-shutdown'),
   btnRebootAll: $<HTMLButtonElement>('btn-reboot-all'),
   btnMute: $<HTMLButtonElement>('btn-mute'),
@@ -197,6 +195,18 @@ function log(level: 'info' | 'warn' | 'error', message: string): void {
   item.append(time, document.createTextNode(message));
   els.log.prepend(item);
   while (els.log.childElementCount > 300) els.log.lastElementChild?.remove();
+}
+
+/** 依鎖定狀態更新鎖定按鈕的文字與樣式（全班＋勾選台） */
+function updateLockButtons(): void {
+  const lockOn = session?.lockActive ?? false;
+  els.btnLock.textContent = lockOn ? '🔓 解除全班鎖定' : '🔒 鎖定全班';
+  els.btnLock.className = lockOn ? 'btn primary grow' : 'btn danger grow';
+  if (checkedPeers.size > 0) {
+    const anyLocked = [...checkedPeers].some(id => session?.isPeerLocked(id) ?? false);
+    els.btnLockChecked.textContent = anyLocked ? '🔓 解除鎖定' : '🔒 鎖定';
+    els.btnLockChecked.className = anyLocked ? 'btn tiny primary' : 'btn tiny warn';
+  }
 }
 
 function setStatus(text: string, kind: 'idle' | 'ok' | 'warn' | 'err' = 'idle'): void {
@@ -1060,19 +1070,24 @@ function bindEvents(): void {
 
   // ─── 單機功能列：只對卡片勾選的台生效 ───
   let barShutdownArmed = false;
+  // ── 鎖定勾選台（切換式）：勾選台中任一已鎖 → 解除全部；否則鎖定全部 ──
   els.btnLockChecked.addEventListener('click', () => {
-    let sent = 0;
-    for (const peerId of checkedPeers) {
-      if (session?.lockStudent(peerId, true)) sent++;
+    if (checkedPeers.size === 0) {
+      log('warn', '先勾選學生機（點卡片即可勾選）。');
+      return;
     }
-    log('info', `已鎖定勾選的 ${sent} 台學生機鍵盤滑鼠`);
-  });
-  els.btnUnlockChecked.addEventListener('click', () => {
-    let sent = 0;
-    for (const peerId of checkedPeers) {
-      if (session?.lockStudent(peerId, false)) sent++;
+    if (!session?.isConnected) {
+      log('warn', '尚未連線；請先按「連線」。');
+      return;
     }
-    log('info', `已解除勾選的 ${sent} 台鎖定（其餘台不在勾選名單內）`);
+    const activeSession = session;
+    const anyLocked = [...checkedPeers].some(id => activeSession.isPeerLocked(id));
+    const on = !anyLocked;
+    let sent = 0;
+    for (const peerId of checkedPeers) if (session.lockStudent(peerId, on)) sent++;
+    log(sent > 0 ? 'info' : 'warn', on ? `已鎖定勾選的 ${sent} 台鍵盤滑鼠` : `已解除勾選的 ${sent} 台鎖定`);
+    updateLockButtons();
+    renderStudents();
   });
   els.btnFileChecked.addEventListener('click', () => {
     if (checkedPeers.size === 0) return;
@@ -1169,27 +1184,21 @@ function bindEvents(): void {
     renderStudents();
     log('info', '已取消全部勾選。');
   });
+  // ── 鎖定全班（切換式）：鎖定與解除同一顆按鈕 ──
   els.btnLock.addEventListener('click', () => {
     if (!session?.isConnected) {
-      log('warn', '尚未連線；請先按「連線」再鎖定。');
+      log('warn', '尚未連線；請先按「連線」。');
+      updateLockButtons();
       return;
     }
-    const sent = session.lockAll(true);
+    const lockOn = session.lockActive;
+    const sent = session.lockAll(!lockOn);
     if (sent > 0) {
-      log('info', `已鎖定 ${sent} 台學生機鍵盤滑鼠`);
+      log('info', lockOn ? `已解除 ${sent} 台鎖定` : `已鎖定 ${sent} 台學生機鍵盤滑鼠`);
     } else {
-      log('warn', '沒有學生機可鎖（控制通道尚未連上任何一台）。');
+      log('warn', '沒有學生機可操作（控制通道尚未連上任何一台）。');
     }
-    renderStudents();
-  });
-
-  els.btnUnlock.addEventListener('click', () => {
-    if (!session?.isConnected) {
-      log('warn', '尚未連線；請先按「連線」再解除鎖定。');
-      return;
-    }
-    const sent = session.lockAll(false);
-    log('info', `已解除 ${sent} 台學生機的鎖定`);
+    updateLockButtons();
     renderStudents();
   });
 

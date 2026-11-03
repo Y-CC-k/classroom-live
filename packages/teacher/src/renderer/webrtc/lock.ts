@@ -8,6 +8,8 @@ export class ControlManager {
   private readonly onLog: (level: 'info' | 'warn' | 'error', message: string) => void;
   private lockOn = false;
   private muteOn = false;
+  /** 單台鎖定狀態（lockStudent 記錄；lockAll 會整批覆寫） */
+  private lockedPeers = new Set<string>();
 
   constructor(
     links: Map<string, Link>,
@@ -39,6 +41,8 @@ export class ControlManager {
    * 不會有「老師忘了對剛上線的那台鎖定」的漏洞。 */
   lockAll(on: boolean): number {
     this.lockOn = on;
+    // 全班意圖覆寫單台狀態：鎖定＝全部加入、解除＝清空
+    this.lockedPeers = on ? new Set(this.links.keys()) : new Set();
     let sent = 0;
     for (const peerId of this.links.keys()) {
       if (this.links.get(peerId)?.ctl?.readyState === 'open') sent++;
@@ -52,11 +56,18 @@ export class ControlManager {
     return this.lockOn;
   }
 
+  /** 該台目前是否處於鎖定狀態（按鈕切換顯示用） */
+  isLocked(peerId: string): boolean {
+    return this.lockedPeers.has(peerId);
+  }
+
   /** 對單一台鎖定／解除鍵盤滑鼠 */
   lockStudent(peerId: string, on: boolean): boolean {
     const link = this.links.get(peerId);
     if (link?.ctl?.readyState !== 'open') return false;
     this.sendCtl(peerId, { t: 'lock', on });
+    if (on) this.lockedPeers.add(peerId);
+    else this.lockedPeers.delete(peerId);
     return true;
   }
 
