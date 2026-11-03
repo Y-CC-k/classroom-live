@@ -1279,6 +1279,10 @@ async function handleControl(raw: unknown): Promise<void> {
       const on = Boolean(message.on);
       inputLocked = on; // 心跳逾時自解時要知道本機是否還被鎖
       log(on ? 'info' : 'info', on ? '老師已鎖定本機鍵盤滑鼠' : '老師解除鎖定');
+      setBanner(
+        on ? '🔒 本機已鎖定（鍵盤滑鼠暫時無法操作）' : broadcastActive ? '已解除鎖定' : '已連線，等待教師廣播…',
+        on ? 'warn' : 'ok'
+      );
       try {
         const locked = await window.studentApi.setInputLock(on);
         if (locked !== on) log('warn', on ? '鎖定登記失敗，輸入未被封鎖' : '解除登記異常');
