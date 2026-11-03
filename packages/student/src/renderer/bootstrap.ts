@@ -98,6 +98,8 @@ let incomingFile: { id: string; name: string; size: number } | null = null;
 let teacherId: string | null = null;
 /** 本工作階段是否曾成功連上伺服器（自動搜尋只對「從未連上」觸發） */
 let everConnected = false;
+/** 原生注入模組是否載入成功（遠端接管前置條件） */
+let nativeReadyFlag = false;
 let selfId: string | null = null;
 let pendingIce: RTCIceCandidateInit[] = [];
 let appVersion = '0.0.0';
@@ -594,7 +596,7 @@ async function acceptBroadcast(description: RTCSessionDescriptionInit): Promise<
             version: appVersion,
             build: buildStamp ?? undefined,
             elevated: false,
-            nativeReady: false,
+            nativeReady: nativeReadyFlag,
             os: platformInfo,
           },
           ts: Date.now(),
@@ -1169,6 +1171,48 @@ async function handleControl(raw: unknown): Promise<void> {
       boardRedraw();
       break;
 
+    case 'mode': {
+      log('info', message.mode === 'control' ? '老師已接管本機鍵鼠（指導模式）' : '控制模式：' + message.mode);
+      break;
+    }
+
+    case 'mouse-move':
+    case 'mouse-button':
+    case 'mouse-wheel':
+    case 'key':
+    case 'text': {
+      // 遠端接管：轉發原生注入（未載入時靜默略過，避免高頻 log）
+      const m = message as {
+        x?: number;
+        y?: number;
+        button?: string;
+        down?: boolean;
+        dy?: number;
+        vk?: number;
+        text?: string;
+      };
+      void window.studentApi.nativeInject({
+        kind:
+          'mouse-move' === message.t
+            ? 'mouse-move'
+            : 'mouse-button' === message.t
+              ? 'mouse-button'
+              : 'mouse-wheel' === message.t
+                ? 'mouse-wheel'
+                : 'key' === message.t
+                  ? 'key'
+                  : 'text',
+        x: Number(m.x ?? 0),
+        y: Number(m.y ?? 0),
+        button: String(m.button ?? 'left'),
+        down: m.down !== false,
+        dy: Number(m.dy ?? 0),
+        vk: Number(m.vk ?? 0),
+        text: String(m.text ?? ''),
+      });
+      break;
+    }
+
     case 'clean-files': {
       // 老師要求清空收檔資料夾（下課收操用）
       log('info', '老師要求清理收檔資料夾');
@@ -1500,6 +1544,7 @@ async function boot(): Promise<void> {
   els.classId.value = config.classId;
   els.studentName.value = config.studentName;
   els.saveDir.value = info.saveDir;
+  nativeReadyFlag = Boolean(info.nativeReady);
   els.saveDir.title = `教師機送來的檔案實際存到這裡。可按「瀏覽…」改變；若資料夾不可寫會自動向下備援（下載資料夾 → 桌面「SETUP」）。部署層 config.json 的 fileSaveDir 變更時會重新套用。\n${info.saveDir}`;
   els.autoConnect.checked = config.autoConnect;
   els.autoFullscreen.checked = config.autoFullscreen;

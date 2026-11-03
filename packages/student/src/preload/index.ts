@@ -21,6 +21,8 @@ const api: StudentApi = {
       userDataPath: string;
       saveDir: string;
       build: string | null;
+      nativeReady: boolean;
+      nativeError: string | null;
     }>,
   setFullscreen: (on: boolean) => ipcRenderer.invoke(IPC.setFullscreen, on) as Promise<boolean>,
   openUrl: (url: string) => ipcRenderer.invoke(IPC.openUrl, url) as Promise<boolean>,
@@ -44,6 +46,9 @@ const api: StudentApi = {
     ipcRenderer.invoke(IPC.discoverServers, timeoutMs) as Promise<{ wsUrl: string }[]>,
   cleanFileDir: () =>
     ipcRenderer.invoke(IPC.cleanFileDir) as Promise<{ ok: boolean; deleted: number; message?: string }>,
+  nativeInject: (payload: unknown) =>
+    ipcRenderer.invoke(IPC.nativeInject, payload) as Promise<{ ok: boolean; message?: string }>,
+  nativeStatus: () => ipcRenderer.invoke(IPC.nativeStatus) as Promise<{ ready: boolean; error: string | null }>,
   execProgram: (target: string, args: string[]) =>
     ipcRenderer.invoke(IPC.execProgram, target, args) as Promise<{ ok: boolean; message?: string }>,
   uwfAction: (

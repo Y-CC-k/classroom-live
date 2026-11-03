@@ -4,6 +4,7 @@ import { app, dialog } from 'electron';
 import { ipcMain } from 'electron';
 
 import { IPC } from '../../shared/ipc.js';
+import { isNativeReady, nativeError } from './native-control.js';
 import { defaultFileSaveDir, getConfig, saveConfig } from '../store.js';
 import { getMainWindow } from './window.js';
 
@@ -162,6 +163,8 @@ export function registerFileIpc(): void {
     electron: process.versions.electron ?? 'unknown',
     userDataPath: app.getPath('userData'),
     build: readBuildInfo(),
+    nativeReady: isNativeReady(),
+    nativeError: nativeError(),
     saveDir: pickSaveDir() ?? getConfig().fileSaveDir,
   }));
 

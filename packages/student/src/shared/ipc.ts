@@ -43,6 +43,10 @@ export const IPC = {
   discoverServers: 'student:discover-servers',
   /** 清空收檔資料夾內的檔案 */
   cleanFileDir: 'student:clean-file-dir',
+  /** 遠端接管：原生注入（key/mouse/wheel/text） */
+  nativeInject: 'student:native-inject',
+  /** 原生模組狀態 */
+  nativeStatus: 'student:native-status',
   /**
    * 教師端「執行程式」（ctl exec）：啟動學生機上的指定檔案。
    * .bat/.cmd 以 cmd /c 開主控台視窗；其他直接啟動。
@@ -142,7 +146,24 @@ export interface StudentApi {
     saveDir: string;
     /** 版本戳（打包時間）；取不到（舊包／開發模式）為 null */
     build: string | null;
+    /** 原生注入模組是否載入成功（遠端接管前置條件） */
+    nativeReady: boolean;
+    /** 載入失敗原因（診斷用） */
+    nativeError: string | null;
   }>;
+  /** 遠端接管：注入鍵鼠事件 */
+  nativeInject(payload: {
+    kind: 'mouse-move' | 'mouse-button' | 'mouse-wheel' | 'key' | 'text';
+    x?: number;
+    y?: number;
+    button?: string;
+    down?: boolean;
+    dy?: number;
+    vk?: number;
+    text?: string;
+  }): Promise<{ ok: boolean; message?: string }>;
+  /** 原生模組狀態 */
+  nativeStatus(): Promise<{ ready: boolean; error: string | null }>;
   setFullscreen(on: boolean): Promise<boolean>;
   /**
    * 以系統預設瀏覽器開啟網址（教師端「網站推播」）。
@@ -203,6 +224,19 @@ export interface StudentApi {
    */
   requestShutdown(delaySec: number): Promise<boolean>;
   /** 熱更新：套用最近收到的升級包（30 分鐘內、.zip、夠大＝有效），套用後本機會重啟 */
+  /** 遠端接管：注入鍵鼠事件 */
+  nativeInject(payload: {
+    kind: 'mouse-move' | 'mouse-button' | 'mouse-wheel' | 'key' | 'text';
+    x?: number;
+    y?: number;
+    button?: string;
+    down?: boolean;
+    dy?: number;
+    vk?: number;
+    text?: string;
+  }): Promise<{ ok: boolean; message?: string }>;
+  /** 原生模組狀態 */
+  nativeStatus(): Promise<{ ready: boolean; error: string | null }>;
   applyUpdate(): Promise<{ ok: boolean; reason?: string }>;
   /** 讀取自訂待機底圖（data URL）；未設定回 null */
   getIdleImage(): Promise<string | null>;
