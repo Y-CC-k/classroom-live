@@ -67,6 +67,10 @@
         "filter": [
           "**/*"
         ]
+      },
+      {
+        "from": "../../scripts/reset-server.ps1",
+        "to": "tools/reset-server.ps1"
       }
     ],
     "win": {
