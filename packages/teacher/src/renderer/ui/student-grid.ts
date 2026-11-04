@@ -199,7 +199,7 @@ export function renderStudents(session: TeacherSession): void {
 
     const broadcastTagClass = videoArrived ? 'tag ok' : targets?.has(peerId) === false ? 'tag' : 'tag';
     meta.append(tag(broadcastText, broadcastTagClass));
-    if (session.lockActive) meta.append(tag('已鎖定', 'tag err'));
+    if (session.lockActive || session.isPeerLocked(student.info.id)) meta.append(tag('已鎖定', 'tag err'));
     if (watchingPeer === peerId) meta.append(tag('👁 正在監看', 'tag ok'));
     if (student.lastError) meta.append(tag(`錯誤：${student.lastError}`, 'tag err'));
 
