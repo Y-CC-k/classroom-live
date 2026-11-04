@@ -39,18 +39,45 @@ export async function preferVideoCodecs(
   try {
     const caps = RTCRtpSender.getCapabilities?.('video');
     const codecs = [...(caps?.codecs ?? [])];
-    const h264 = codecs.filter(codec => codec.mimeType?.toLowerCase() === 'video/h264');
+    // setCodecPreferences 會同時以「收」「送」兩端能力驗證偏好清單：
+    // 只要接收端（解碼）不支援 H.264，整個呼叫就丟 invalid codec。
+    // 因此先與收端能力取交集，避免無效偏好被整批退回。
+    const receiverCaps = (
+      RTCRtpReceiver as unknown as {
+        getCapabilities?: (kind: string) => { codecs?: RTCRtpCodec[] } | null;
+      }
+    ).getCapabilities?.('video');
+    const receiverCodecs = [...(receiverCaps?.codecs ?? [])];
+    const sameMime = (codec: RTCRtpCodec, receiver: RTCRtpCodec): boolean =>
+      codec.mimeType?.toLowerCase() === 'video/h264' && receiver.mimeType?.toLowerCase() === 'video/h264';
+    // 第一輪：送端 H.264 與收端「同參數」的交集（最精準）
+    let h264 = codecs.filter(codec =>
+      receiverCodecs.some(receiver => sameMime(codec, receiver) && receiver.sdpFmtpLine === codec.sdpFmtpLine)
+    );
+    // 第二輪：參數字串對不上時，退而求其次只比 mimeType（仍保留送端支援的變體）
     if (h264.length === 0) {
-      options.onLog('warn', '這台教師機的瀏覽器不支援 H.264 編碼，沿用預設編碼。');
+      h264 = codecs.filter(codec => receiverCodecs.some(receiver => sameMime(codec, receiver)));
+    }
+    if (h264.length === 0) {
+      options.onLog('warn', '這台教師機的瀏覽器不支援 H.264 編碼（收送能力需同時具備），沿用預設編碼。');
       return;
     }
     const others = codecs.filter(codec => codec.mimeType?.toLowerCase() !== 'video/h264');
     const ordered = [...h264, ...others];
+    let failed = 0;
     for (const transceiver of pc.getTransceivers()) {
       // kind 是標準屬性，但這裡的 TS lib 型別沒標到 → 先 cast、再以 sender.track 補判
       const kind = (transceiver as unknown as { kind?: string }).kind ?? transceiver.sender.track?.kind ?? '';
       if (kind !== 'video') continue;
-      transceiver.setCodecPreferences(ordered);
+      try {
+        transceiver.setCodecPreferences(ordered);
+      } catch {
+        // 單一連線失敗不影響其他台；該台沿用預設編碼（VP8/VP9）。
+        failed++;
+      }
+    }
+    if (failed > 0) {
+      options.onLog('warn', `H.264 編碼偏好有 ${failed} 條連線套用失敗（該部分沿用預設編碼）。`);
     }
   } catch (error) {
     options.onLog('warn', `編碼偏好設定失敗（沿用預設）:${describe(error)}`);

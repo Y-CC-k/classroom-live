@@ -483,14 +483,9 @@ select:disabled {
   cursor: pointer;
 }
 
-/* 單機功能列：中欄最下方，勾選任何卡片才出現 */
+/* 單機功能列：已完全移除（強制隱藏，任何狀態都不顯示） */
 .per-student-bar {
-  margin-top: 10px;
-  border-top: 1px solid var(--line);
-  padding-top: 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+  display: none !important;
 }
 
 .per-student-bar .tools {

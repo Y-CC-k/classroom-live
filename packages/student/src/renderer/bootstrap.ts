@@ -1133,7 +1133,21 @@ async function handleControl(raw: unknown): Promise<void> {
       // 教師開／關獨立電子白板：進入時清空筆跡（開新板）
       els.boardLayer.hidden = !message.on;
       if (message.on) boardClear();
-      log('info', message.on ? '老師開啟了電子白板' : '老師關閉了電子白板');
+      // 白板必須全螢幕：教師端筆跡座標以全螢幕為基準，學生機視窗化時比例會錯位
+      try {
+        await window.studentApi.setFullscreen(Boolean(message.on));
+      } catch (error) {
+        log('warn', '白板全螢幕設定失敗：' + (error instanceof Error ? error.message : String(error)));
+      }
+      // 關閉白板且非廣播中 → 退出全螢幕還原桌面；廣播中交由強制全螢幕接手
+      if (!message.on && !broadcastActive) {
+        try {
+          await window.studentApi.setFullscreen(false);
+        } catch {
+          // 忽略：退不出全螢幕不影響上課
+        }
+      }
+      log('info', message.on ? '老師開啟了電子白板（已切換全螢幕）' : '老師關閉了電子白板');
       break;
     }
 

@@ -200,7 +200,7 @@ function log(level: 'info' | 'warn' | 'error', message: string): void {
 /** 依鎖定狀態更新鎖定按鈕的文字與樣式（全班＋勾選台） */
 function updateLockButtons(): void {
   const lockOn = session?.lockActive ?? false;
-  els.btnLock.textContent = lockOn ? '🔓 解除全班鎖定' : '🔒 鎖定全班';
+  els.btnLock.textContent = lockOn ? '🔓 解鎖' : '🔒 鎖定';
   els.btnLock.className = lockOn ? 'btn primary grow' : 'btn danger grow';
   if (checkedPeers.size > 0) {
     const anyLocked = [...checkedPeers].some(id => session?.isPeerLocked(id) ?? false);
@@ -785,7 +785,7 @@ const checkedPeers = new Set<string>();
 /** 單機功能列顯示：沒勾任何一台時整列收起 */
 function updateStudentBar(): void {
   const count = checkedPeers.size;
-  els.perStudentBar.hidden = count === 0;
+  els.perStudentBar.hidden = true;
   els.checkedCount.textContent = `已選 ${count} 台`;
 }
 

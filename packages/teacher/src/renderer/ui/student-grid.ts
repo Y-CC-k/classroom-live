@@ -96,8 +96,8 @@ export function toggleWatchChecked(session: TeacherSession): void {
 
 /** 勾選要進行「單機功能」的學生機（卡片勾選框；勾選名單獨立於廣播名單） */
 export function updateStudentBar(): void {
-  const count = checkedPeers.size;
-  els.perStudentBar.hidden = count === 0;
+  const count = 0;
+  els.perStudentBar.hidden = true;
   els.checkedCount.textContent = `已選 ${count} 台`;
 }
 
@@ -199,7 +199,7 @@ export function renderStudents(session: TeacherSession): void {
 
     const broadcastTagClass = videoArrived ? 'tag ok' : targets?.has(peerId) === false ? 'tag' : 'tag';
     meta.append(tag(broadcastText, broadcastTagClass));
-    if (session.lockActive || session.controlManager.lockedPeers.has(student.info.id) || session.isPeerLocked(student.info.id)) meta.append(tag('已鎖定', 'tag err'));
+    if (session.lockActive) meta.append(tag('已鎖定', 'tag err'));
     if (watchingPeer === peerId) meta.append(tag('👁 正在監看', 'tag ok'));
     if (student.lastError) meta.append(tag(`錯誤：${student.lastError}`, 'tag err'));
 
