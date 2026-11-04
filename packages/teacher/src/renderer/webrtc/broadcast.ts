@@ -718,6 +718,27 @@ export class BroadcastManager {
   getPump(): ImagePump {
     return this.pump;
   }
+
+  /**
+   * 學生示範中繼：把示範學生機上傳的 JPEG 幀轉發給所有學生機。
+   * 走與教師廣播完全相同的 img 通道與信封（img-hdr → 分片 → img-end），
+   * 學生端零修改——收到後與教師廣播同一套顯示路徑。
+   */
+  relayFrame(buffer: ArrayBuffer): number {
+    return this.pump.relayFrame(buffer);
+  }
+
+  /**
+   * 學生示範的接收模式開關：對所有已連線學生機發送
+   * `broadcast on/off (mode=image)`。示範期間教師自己的圖片泵
+   * 不會發幀（pump 只在 setLocalStream 有串流時運作），學生機收到的
+   * img 幀全部來自示範中繼。
+   */
+  demoBroadcast(on: boolean): void {
+    for (const peerId of this.links.keys()) {
+      this.sendCtl(peerId, { t: 'broadcast', on, mode: 'image' });
+    }
+  }
   getBroadcastTargets(): Set<string> | null {
     return this.broadcastTargets;
   }

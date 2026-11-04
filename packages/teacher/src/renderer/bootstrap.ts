@@ -56,6 +56,10 @@ let boardInstance: Whiteboard | null = null;
 let boardModeOn = false;
 /** 遠端接管狀態：接管中的學生機（null = 未接管） */
 let controllingPeer: string | null = null;
+/** 學生示範：目前被轉播的學生機（null = 非示範模式） */
+let demoPeer: string | null = null;
+/** 學生示範啟動前是否正在廣播（結束示範後提示可重開） */
+let demoWasBroadcasting = false;
 let controlImgUrl: string | null = null;
 
 /** 釋放已經被換掉的鏡像修正器（務必在 `setLocalStream()` 之後呼叫）。 */
@@ -805,6 +809,7 @@ async function connect(): Promise<void> {
     if (boardModeOn) toggleBoardMode();
     // 斷線前結束接管
     if (controllingPeer) exitControl();
+    if (demoPeer) stopDemo();
     monitorWall?.hide();
     session.disconnect();
     session = null;
@@ -850,6 +855,17 @@ async function connect(): Promise<void> {
     },
     // 單台螢幕監看：每 3 秒一張，組完幀即顯示在右下角浮動小窗
     onWatchFrame: (peerId, frame) => {
+      // 學生示範中繼：示範者的幀不顯示，直接轉發給全班（img 通道）
+      if (demoPeer) {
+        if (peerId === demoPeer) {
+          void frame.blob.arrayBuffer().then(buf => {
+            const sent = session?.relayFrame(buf) ?? 0;
+            if (sent === 0) log('warn', '示範畫面未送達任何學生機（可能都積塞或離線）');
+          });
+        }
+        URL.revokeObjectURL(frame.url);
+        return;
+      }
       if (controllingPeer === peerId) {
         // 接管中：顯示在控制視窗（先收掉上一幀的 URL，順序不能反）
         if (controlImgUrl) URL.revokeObjectURL(controlImgUrl);
@@ -898,7 +914,8 @@ async function connect(): Promise<void> {
     },
     (peerId, name, blob) => void handleSnapshot(peerId, name, blob),
     (peerId, name) => takeControl(peerId, name),
-    visible => void window.teacherApi.setFullscreen(visible)
+    visible => void window.teacherApi.setFullscreen(visible),
+    (peerId, name) => toggleDemo(peerId, name)
   );
 
   // 白板筆：擷取畫面尺寸來源（video 或 img 預覽）
@@ -1579,6 +1596,10 @@ function bindEvents(): void {
 
   // 鍵盤轉發（接管中；ESC 離開）
   window.addEventListener('keydown', e => {
+    if (demoPeer && e.key === 'Escape') {
+      stopDemo();
+      return;
+    }
     if (!controllingPeer) return;
     if (e.key === 'Escape') {
       exitControl();
@@ -1740,6 +1761,49 @@ function exitControl(): void {
   els.controlImg.src = '';
   void window.teacherApi.setFullscreen(false);
   log('info', `已離開遠端接管（${name}）。`);
+}
+
+/** 開始學生示範：把示範學生機的畫面轉發給全班（教師機中繼） */
+function startDemo(peerId: string, name: string): void {
+  if (!session?.isConnected) {
+    log('warn', '尚未連線；請先按「連線」再使用學生示範。');
+    return;
+  }
+  demoWasBroadcasting = Boolean(localStream);
+  if (localStream) {
+    // 示範畫面與教師廣播共用同一條 img 通道：先停教師廣播避免兩種畫面交錯
+    void stopBroadcast();
+    log('info', '學生示範啟動：教師廣播已自動停止（結束示範後可再開）。');
+  }
+  // 全班進入 image 接收模式（學生端收到的 img 幀全部來自示範中繼）
+  session.demoBroadcast(true);
+  // 示範者高頻上傳（0.7 秒/張，走現有監看上傳路徑）
+  session.watchStudent(peerId, true, 700);
+  demoPeer = peerId;
+  log('info', `📢 學生示範開始：${name} 的畫面正在播給全班。再點一次 📢 或按 ESC 結束。`);
+}
+
+/** 結束學生示範 */
+function stopDemo(): void {
+  if (!demoPeer) return;
+  const name = session?.students().find(s => s.info.id === demoPeer)?.info.name ?? demoPeer;
+  session?.watchStudent(demoPeer, false);
+  session?.demoBroadcast(false);
+  demoPeer = null;
+  log(
+    'info',
+    `📢 學生示範結束（${name}）。` + (demoWasBroadcasting ? '教師廣播已停止，需要時請再按「開始廣播」。' : '')
+  );
+}
+
+/** 切換學生示範：同一台再點＝結束；點別台＝切換示範對象 */
+function toggleDemo(peerId: string, name: string): void {
+  if (demoPeer === peerId) {
+    stopDemo();
+    return;
+  }
+  if (demoPeer) stopDemo();
+  startDemo(peerId, name);
 }
 
 /**

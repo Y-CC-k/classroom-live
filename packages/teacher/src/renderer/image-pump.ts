@@ -233,6 +233,31 @@ export class ImagePump {
     this.sharpQuality = Math.min(0.97, Math.max(0.6, quality));
   }
 
+  /**
+   * 學生示範中繼：把**外部**取得的 JPEG（例如示範學生機上傳的畫面）
+   * 用與教師畫面完全相同的信封（img-hdr → 64KB 分片 → img-end）發送到
+   * 所有已連線學生機。學生端零修改——收到後與教師廣播同一套顯示路徑。
+   * @returns 實際送達（未積塞）的台數
+   */
+  relayFrame(buffer: ArrayBuffer): number {
+    const channels = this.getChannels().filter(channel => channel.readyState === 'open');
+    let sent = 0;
+    for (const channel of channels) {
+      if (channel.bufferedAmount > this.backlogCeiling('sharp')) continue;
+      try {
+        channel.send(JSON.stringify({ t: 'img-hdr', size: buffer.byteLength }));
+        for (let offset = 0; offset < buffer.byteLength; offset += FILE_CHUNK_SIZE) {
+          channel.send(buffer.slice(offset, Math.min(offset + FILE_CHUNK_SIZE, buffer.byteLength)));
+        }
+        channel.send(JSON.stringify({ t: 'img-end' }));
+        sent++;
+      } catch {
+        // 單台失敗不影響其他台
+      }
+    }
+    return sent;
+  }
+
   private async pumpOne(): Promise<void> {
     // 保險：上一張壓縮超時還沒跑完也別讓泵斷弦，快拍叫醒
     if (this.busyTask) {

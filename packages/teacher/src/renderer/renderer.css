@@ -889,6 +889,29 @@ select:disabled {
   right: 56px;
 }
 
+/* 📢 示範按鈕：樣式同接管鈕，位置在接管鈕左側 */
+.wall-cell-demo {
+  position: absolute;
+  top: 4px;
+  right: 108px;
+  z-index: 3;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  background: rgba(0, 0, 0, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 6px;
+  color: #fff;
+  cursor: pointer;
+  font-size: 20px;
+  padding: 4px 10px;
+  opacity: 0.9;
+  border-width: 2px;
+}
+
+.wall-cell:hover .wall-cell-demo {
+  opacity: 1;
+}
+
 .control-head {
   flex-wrap: wrap;
   row-gap: 6px;

@@ -118,6 +118,9 @@ class WallCell {
   /** 接管回調（由 MonitorWall 注入） */
   onControl?: (peerId: string, name: string) => void;
   private readonly controlBtn: HTMLButtonElement;
+  /** 示範回調（由 MonitorWall 注入）：把這台的畫面轉發給全班 */
+  onDemo?: (peerId: string, name: string) => void;
+  private readonly demoBtn: HTMLButtonElement;
   private currentUrl: string | null = null;
   /** 最後一幀的 Blob（📸 收藏用） */
   lastBlob: Blob | null = null;
@@ -159,12 +162,22 @@ class WallCell {
       e.stopPropagation();
       this.onControl?.(this.peerId, this.nameEl.textContent ?? this.peerId);
     });
+    // 📢 示範按鈕：hover 顯示，點擊把這台的畫面轉發給全班
+    this.demoBtn = document.createElement('button');
+    this.demoBtn.type = 'button';
+    this.demoBtn.className = 'wall-cell-demo';
+    this.demoBtn.textContent = '📢';
+    this.demoBtn.title = '學生示範：把這台的畫面播給全班看';
+    this.demoBtn.addEventListener('click', e => {
+      e.stopPropagation();
+      this.onDemo?.(this.peerId, this.nameEl.textContent ?? this.peerId);
+    });
     this.snapBtn.addEventListener('click', e => {
       e.stopPropagation();
       if (this.lastBlob) this.onSnapshot?.(this.peerId, this.nameEl.textContent ?? this.peerId, this.lastBlob);
     });
 
-    this.element.append(this.img, this.nameEl, this.metaEl, this.snapBtn, this.controlBtn);
+    this.element.append(this.img, this.nameEl, this.metaEl, this.snapBtn, this.controlBtn, this.demoBtn);
   }
 
   get elementRef(): HTMLElement {
@@ -234,6 +247,8 @@ export class MonitorWall {
   private readonly onSnapshot: (peerId: string, name: string, blob: Blob) => void;
   /** 🎮 接管回調：peerId、學生名 */
   private readonly onControl: (peerId: string, name: string) => void;
+  /** 📢 示範回調：peerId、學生名（把這台的畫面轉發給全班） */
+  private readonly onDemo: (peerId: string, name: string) => void;
   /** 監控牆顯示／隱藏時同步視窗全螢幕 */
   private readonly onVisibilityChange: (visible: boolean) => void;
 
@@ -244,7 +259,8 @@ export class MonitorWall {
     getWatchTargets: () => string[],
     onSnapshot: (peerId: string, name: string, blob: Blob) => void,
     onControl: (peerId: string, name: string) => void,
-    onVisibilityChange: (visible: boolean) => void
+    onVisibilityChange: (visible: boolean) => void,
+    onDemo: (peerId: string, name: string) => void
   ) {
     this.container = container;
     this.session = session;
@@ -252,6 +268,7 @@ export class MonitorWall {
     this.onSnapshot = onSnapshot;
     this.onControl = onControl;
     this.onVisibilityChange = onVisibilityChange;
+    this.onDemo = onDemo;
     this.getWatchTargets = getWatchTargets;
 
     // 注入樣式
@@ -339,6 +356,7 @@ export class MonitorWall {
       const cell = new WallCell(peerId, name);
       cell.onSnapshot = (pid, nm, blob) => this.onSnapshot(pid, nm, blob);
       cell.onControl = (pid, nm) => this.onControl(pid, nm);
+      cell.onDemo = (pid, nm) => this.onDemo(pid, nm);
       this.cells.set(peerId, cell);
       this.container.appendChild(cell.elementRef);
     }

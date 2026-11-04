@@ -394,6 +394,16 @@ export class TeacherSession {
     return this.controlManager.isLocked(peerId);
   }
 
+  /** 學生示範中繼：把示範學生機的 JPEG 幀轉發給所有學生機（img 通道） */
+  relayFrame(buffer: ArrayBuffer): number {
+    return this.broadcastManager.relayFrame(buffer);
+  }
+
+  /** 學生示範的接收模式開關：對所有學生機發 broadcast on/off (image) */
+  demoBroadcast(on: boolean): void {
+    this.broadcastManager.demoBroadcast(on);
+  }
+
   /** 進入遠端接管（單台）：送 control 模式，回傳是否成功。 */
   controlStart(peerId: string): boolean {
     const link = this.broadcastManager.getLinks().get(peerId);
