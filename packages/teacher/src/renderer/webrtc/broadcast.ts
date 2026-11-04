@@ -750,6 +750,7 @@ export class BroadcastManager {
         // 單台失敗不影響其他台
       }
     }
+    this.options.onLog('info', `[demo] 中繼 ${Math.round(buffer.byteLength / 1024)} KB → ${sent}/${channels.length} 台`);
     return sent;
   }
 

@@ -645,6 +645,10 @@ async function acceptBroadcast(description: RTCSessionDescriptionInit): Promise<
       // 教師端逐張送，通道上同時只有一張圖。
       let imgQueue: Promise<void> = Promise.resolve();
       channel.onmessage = message => {
+        if (!imgChannelSeen) {
+          imgChannelSeen = true;
+          log('info', '[demo] img 通道開始收到訊息（img 下行實證）');
+        }
         imgQueue = imgQueue
           .then(() => handleImgChannel(message.data))
           .catch(error => log('warn', `圖片處理錯誤：${error instanceof Error ? error.message : String(error)}`));
@@ -714,6 +718,7 @@ function closeBroadcast(): void {
 let incomingImg: { size: number; chunks: Uint8Array[]; received: number } | null = null;
 let lastImgUrl: string | null = null;
 let imgFirstFrameLogged = false;
+let imgChannelSeen = false;
 
 /** 圖片通道：hdr(JSON) → JPEG 裸分片 → end(JSON)。end 一到就組起來顯示。 */
 async function handleImgChannel(data: unknown): Promise<void> {

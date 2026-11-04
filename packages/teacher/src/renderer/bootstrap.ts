@@ -859,10 +859,13 @@ async function connect(): Promise<void> {
       // 學生示範中繼：示範者的幀轉發給全班；監控牆若開著也同步顯示
       if (demoPeer) {
         if (peerId === demoPeer) {
-          void frame.blob.arrayBuffer().then(buf => {
-            const sent = session?.relayFrame(buf) ?? 0;
-            if (sent === 0) log('warn', '[demo] 幀未送達任何學生機（積塞或離線）');
-          });
+          frame.blob
+            .arrayBuffer()
+            .then(buf => {
+              const sent = session?.relayFrame(buf) ?? 0;
+              if (sent === 0) log('warn', '[demo] 幀未送達任何學生機（積塞或離線）');
+            })
+            .catch(error => log('warn', '[demo] 中繼例外：' + (error instanceof Error ? error.message : String(error))));
           if (!demoFirstFrameLogged) {
             demoFirstFrameLogged = true;
             log(
