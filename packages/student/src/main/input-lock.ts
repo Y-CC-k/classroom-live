@@ -1,5 +1,7 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 
+import { getNativeBinding } from './modules/native-control.js';
+
 /**
  * 輸入鎖定（教師端「鎖定全班」）：
  *
@@ -7,8 +9,13 @@ import { spawn, type ChildProcess } from 'node:child_process';
  *   畫面刻意不動：正在廣播就繼續顯示廣播全螢幕，沒在廣播就維持原畫面，
  *   學生的視覺完全不打斷，只是按不出任何東西。
  *
- * hook 由一個常駐的 PowerShell 行程執行（內嵌 C#，不吃 native 模組）；
- * 行程被砍掉 hook 即失效、輸入自動還原，所以解鎖最安全。
+ * 兩種實作，優先原生：
+ *   1. native（首選）：classroom_input.node 內建 LL hook（專用執行緒泵訊息）。
+ *      不依賴 PowerShell——學校電腦常見 CLM（Constrained Language Mode）會讓
+ *      Add-Type 失敗，PS 路線在那些機器上整組失效。
+ *   2. ps（fallback）：常駐 PowerShell 行程（內嵌 C#）。行程被砍掉 hook 即
+ *      失效、輸入自動還原。
+ *
  * Ctrl+Alt+Del 走安全桌面（winlogon），不受 hook 影響，是求援出口。
  */
 
@@ -68,12 +75,16 @@ Write-Output ("HOOK " + [InputBlock]::Start())
 [System.Windows.Forms.Application]::Run()
 `.trim();
 
+/** 鎖定實作模式：native＝原生模組 LL hook；ps＝PowerShell 行程（fallback） */
+type LockMode = 'native' | 'ps';
+
 interface LockLog {
   (line: string): void;
 }
 
 export class InputLocker {
   private active = false;
+  private mode: LockMode | null = null;
   private blocker: ChildProcess | null = null;
   private timer: NodeJS.Timeout | null = null;
   private log: LockLog;
@@ -86,25 +97,42 @@ export class InputLocker {
     return this.active;
   }
 
+  /** 目前使用的實作模式（診斷用；未啟用時為 null） */
+  getMode(): LockMode | null {
+    return this.mode;
+  }
+
   setActive(on: boolean): void {
     if (on === this.active) return;
     this.active = on;
 
     if (on) {
-      this.ensureBlocker();
+      // 原生鉤子優先；native 模組沒載入／啟動失敗才退回 PowerShell
+      this.mode = this.startNativeHook() ? 'native' : 'ps';
+      if (this.mode === 'ps') this.ensureBlocker();
       this.timer = setInterval(() => {
         if (!this.active) return;
-        // hook 行程被砍掉／自然結束 → 立刻重開，封鎖才不會出現空窗。
+        if (this.mode === 'native') {
+          // 鉤子執行緒若被系統移除（逾時／panic）會反映在 hookIsBlocking
+          const native = getNativeBinding();
+          if (native && native.hookIsBlocking() && native.hookIsActive()) return;
+          this.log('[lock] 原生鉤子失去攔截，重新啟動');
+          if (this.startNativeHook()) return;
+          this.mode = 'ps';
+        }
+        // PS 模式：hook 行程被砍掉／自然結束 → 立刻重開，封鎖才不會出現空窗。
         if (!this.blocker || this.blocker.exitCode !== null) {
           this.log('[lock] 輸入封鎖行程已離開，重新啟動');
           this.ensureBlocker();
         }
       }, RESPAWN_INTERVAL_MS);
       this.timer.unref?.();
-      this.log('[lock] 輸入鎖定：鍵盤滑鼠封鎖（畫面不動）');
+      this.log(`[lock] 輸入鎖定：鍵盤滑鼠封鎖（畫面不動，模式=${this.mode}）`);
     } else {
       this.stopTimer();
+      this.stopNativeHook();
       this.killBlocker();
+      this.mode = null;
       this.log('[lock] 解除輸入鎖定');
     }
   }
@@ -112,8 +140,55 @@ export class InputLocker {
   /** 行程結束前的清理：絕不能讓 hook 行程孤兒化（input 永遠被封鎖） */
   dispose(): void {
     this.stopTimer();
+    this.stopNativeHook();
     this.killBlocker();
     this.active = false;
+    this.mode = null;
+  }
+
+  /**
+   * 啟動原生模組的 LL hook 並開始攔截。
+   * @returns true 表示原生鉤子已生效；false 表示應退回 PowerShell
+   */
+  private startNativeHook(): boolean {
+    const native = getNativeBinding();
+    if (!native) {
+      this.log('[lock] 原生模組未載入，改用 PowerShell 鉤子');
+      return false;
+    }
+    try {
+      const started = native.hookStart();
+      const blocking = started ? native.hookSetBlocking(true) : false;
+      if (started && blocking) {
+        this.log('[lock] 原生鉤子已安裝並開始攔截（HOOK 1/1 via native）');
+        return true;
+      }
+      this.log(
+        `[lock] 原生鉤子啟動失敗（start=${started ? 1 : 0}, blocking=${blocking ? 1 : 0}），改用 PowerShell 鉤子`
+      );
+      try {
+        native.hookStop();
+      } catch {
+        // 沒裝成功就算了
+      }
+      return false;
+    } catch (error) {
+      this.log(`[lock] 原生鉤子例外：${error instanceof Error ? error.message : String(error)}，改用 PowerShell 鉤子`);
+      return false;
+    }
+  }
+
+  /** 解除原生鉤子（只在 native 模式有意義；重複呼叫無害） */
+  private stopNativeHook(): void {
+    if (this.mode !== 'native') return;
+    const native = getNativeBinding();
+    if (!native) return;
+    try {
+      native.hookSetBlocking(false);
+      native.hookStop();
+    } catch {
+      // 已停止就算了
+    }
   }
 
   private stopTimer(): void {

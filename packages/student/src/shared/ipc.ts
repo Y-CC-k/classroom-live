@@ -69,6 +69,8 @@ export const IPC = {
 export const EVENTS = {
   /** 由托盤選單下達的指令 */
   command: 'student:event-command',
+  /** 主行程診斷日誌（[lock] 等訊息轉發到學生日誌；安裝版沒有 console） */
+  mainLog: 'student:main-log',
 } as const;
 
 export type HostCommand = 'reconnect' | 'toggle-fullscreen';
@@ -290,6 +292,8 @@ export interface StudentApi {
 
 export interface StudentEvents {
   onCommand(callback: (command: HostCommand) => void): void;
+  /** 訂閱主行程診斷日誌（每列一行） */
+  onMainLog(callback: (line: string) => void): void;
 }
 
 declare global {

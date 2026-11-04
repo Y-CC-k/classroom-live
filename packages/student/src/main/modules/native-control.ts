@@ -24,6 +24,10 @@ export function initNativeControl(): void {
   console.log(`[native] ${binding ? `已載入：${result.loadedFrom}` : `未載入：${loadError}`}`);
 }
 
+export function getNativeBinding() {
+  return binding;
+}
+
 export function isNativeReady(): boolean {
   return binding !== null;
 }

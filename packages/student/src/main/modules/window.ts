@@ -171,7 +171,12 @@ export function initializeApp(): void {
   });
 
   const enforcer = new BroadcastEnforcer();
-  const locker = new InputLocker(line => console.log(line));
+  // 鎖定診斷訊息（[lock] HOOK 1/1 等）同時送到學生日誌：
+  // 安裝版沒有 console，這些訊息原本只在主行程輸出，是診斷上的盲區。
+  const locker = new InputLocker(line => {
+    console.log(line);
+    send(EVENTS.mainLog, line);
+  });
 
   // 教師端鎖定／解除鍵盤滑鼠（低階 hook 封鎖輸入）。
   // 之前此 handler 缺失，鎖定指令會被靜默丟棄（renderer 端 invoke 拋出

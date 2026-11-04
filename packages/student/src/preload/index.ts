@@ -71,6 +71,9 @@ const events: StudentEvents = {
   onCommand: callback => {
     ipcRenderer.on(EVENTS.command, (_event, command: HostCommand) => callback(command));
   },
+  onMainLog: callback => {
+    ipcRenderer.on(EVENTS.mainLog, (_event, line: string) => callback(line));
+  },
 };
 
 contextBridge.exposeInMainWorld('studentApi', api);

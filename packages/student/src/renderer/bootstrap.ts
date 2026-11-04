@@ -1505,6 +1505,12 @@ function bindEvents(): void {
     }
   });
 
+  // 主行程診斷日誌（鎖定鉤子 [lock] 等訊息）顯示到學生日誌，
+  // 安裝版沒有 console，這是唯一看得到主行程狀態的窗口。
+  window.studentEvents.onMainLog(line => {
+    log('info', `[main] ${line}`);
+  });
+
   // Esc 先收選單
   window.addEventListener('keydown', event => {
     if (event.key !== 'Escape') return;
