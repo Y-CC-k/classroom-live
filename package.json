@@ -29,7 +29,7 @@
     "pack:server": "npm run build:server",
     "pack:server-gui": "npm run build:server && npm run build --workspace @classroom/server-gui && npm run pack --workspace @classroom/server-gui",
     "pack:sfu": "npm run build:sfu",
-    "pack:all": "npm run build && npm run pack --workspace @classroom/teacher && npm run pack --workspace @classroom/student && npm run pack --workspace @classroom/server-gui",
+    "pack:all": "npm run build && npm run pack --workspace @classroom/teacher && npm run pack --workspace @classroom/student && npm run pack --workspace @classroom/server-gui && npm run pack --workspace @classroom/teacher-lite",
     "make-upgrade-pack": "node scripts/make-upgrade-pack.mjs",
     "typecheck": "npm run build --workspace @classroom/protocol && npm run build --workspace @classroom/sfu && npm run typecheck --workspace @classroom/protocol && npm run typecheck --workspace @classroom/server && npm run typecheck --workspace @classroom/teacher && npm run typecheck --workspace @classroom/teacher-lite && npm run typecheck --workspace @classroom/student && npm run typecheck --workspace @classroom/server-gui && npm run typecheck --workspace @classroom/sfu",
     "lint": "eslint . --ext .ts,.tsx,.mjs",

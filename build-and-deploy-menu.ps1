@@ -61,52 +61,14 @@ function Get-StudentUnpack {
 }
 
 
-function New-UpgradeZip {
-    $unpack = Get-StudentUnpack
-    if (-not $unpack) { Show-Warn "找不到學生機 win-unpacked"; return }
-    $zipOut = Join-Path $PSScriptRoot "學生機升級包.zip"
-    $resDir = Join-Path $unpack.FullName "resources"
-    $asarPath = Join-Path $resDir "app.asar"
-    $appDirPath = Join-Path $resDir "app"
-    try {
-        if (Test-Path $zipOut) { Remove-Item $zipOut -Force }
-        if (Test-Path $asarPath) {
-            Write-Host "  使用 resources\app.asar（熱更新結構）" -ForegroundColor Gray
-            Compress-Archive -LiteralPath $asarPath -DestinationPath $zipOut -CompressionLevel Optimal -Force -ErrorAction Stop
-        } elseif (Test-Path $appDirPath) {
-            Write-Host "  使用 resources\app 資料夾（熱更新結構，排除 config.json）" -ForegroundColor Gray
-            # 部署層 config.json 是各校自己的設定（serverUrl/classId 等），
-            # 熱更新包覆蓋會把設定洗掉，所以一律排除（與 make-upgrade-pack.ps1 同規則）。
-            $stage = Join-Path ([System.IO.Path]::GetTempPath()) ("classroom-upgrade-" + [guid]::NewGuid().ToString("N"))
-            New-Item -ItemType Directory -Path $stage -Force | Out-Null
-            Get-ChildItem -Path $appDirPath -Force | Where-Object { $_.Name -ne "config.json" } | ForEach-Object {
-                Copy-Item $_.FullName -Destination (Join-Path $stage $_.Name) -Recurse -Force
-            }
-            # 附上原生模組（遠端接管用）
-            $nativeSrc = Join-Path $PSScriptRoot "packages\native\bin\win32-x64-130\classroom_input.node"
-            if (Test-Path $nativeSrc) {
-                $nativeDir = Join-Path $stage "native"
-                New-Item -ItemType Directory -Path $nativeDir -Force | Out-Null
-                Copy-Item $nativeSrc -Destination (Join-Path $nativeDir "classroom_input.node") -Force
-                Write-Host "  已附上原生模組（classroom_input.node）" -ForegroundColor Gray
-            } else {
-                Write-Host "  [提醒] 找不到原生模組，此升級包不含遠端接管" -ForegroundColor Yellow
-            }
-            Compress-Archive -Path (Join-Path $stage "*") -DestinationPath $zipOut -CompressionLevel Optimal -Force -ErrorAction Stop
-            Remove-Item $stage -Recurse -Force -ErrorAction SilentlyContinue
-        } else {
-            Show-Warn "找不到 resources\app.asar 或 resources\app"
-            return
-        }
-        if (Test-Path $deployDir) {
-            Copy-Item $zipOut -Destination (Join-Path $deployDir "學生機升級包.zip") -Force -ErrorAction Stop
-        }
-        $mb = [math]::Round((Get-Item $zipOut).Length / 1MB, 2)
-        Show-Ok "學生機升級包.zip 完成（$mb MB，不含 config.json）"
-    } catch {
-        Show-Warn "學生機升級包.zip 失敗：$($_.Exception.Message)"
+function Invoke-UpgradePack {
+    Invoke-Pack -ScriptName "make-upgrade-pack" -Label "學生機升級包（含 native 模組）"
+    $src = Get-ChildItem -Path $PSScriptRoot -Filter "學生機升級包 *.zip" -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($src -and (Test-Path $deployDir)) {
+        Copy-Item $src.FullName -Destination (Join-Path $deployDir $src.Name) -Force -ErrorAction SilentlyContinue
     }
 }
+
 
 function Invoke-Pack {
     param([string]$ScriptName, [string]$Label)
@@ -145,7 +107,7 @@ function Show-Menu {
     Write-Host "  [3] 只打包學生機 + 更新 deploy（含升級包.zip）" -ForegroundColor White
     Write-Host "  [4] 只打包伺服器 + 伺服器GUI + 更新 deploy" -ForegroundColor White
     Write-Host "  [5] 不重新打包，把現有結果更新到 deploy（安裝包 + 兩個 zip）" -ForegroundColor White
-    Write-Host "  [6] 只產生 學生機升級包.zip（熱更新用，不打包）" -ForegroundColor White
+    Write-Host "  [6] 只產生 學生機升級包（make-upgrade-pack，含 native）" -ForegroundColor White
     Write-Host "  [8] 只打包教師機（簡易版）+ 更新 deploy" -ForegroundColor White
     Write-Host "  [0] 結束" -ForegroundColor DarkGray
     Write-Host ""
@@ -161,12 +123,11 @@ do {
             try {
                 if (-not (Ensure-DeployDir)) { throw "無法使用 C:\deploy" }
                 Invoke-Pack -ScriptName "pack:all" -Label "全部（教師機/學生機/伺服器/伺服器GUI）"
-                Invoke-Pack -ScriptName "pack:teacher-lite" -Label "教師機（簡易版）"
                 Copy-SetupsByFolder -Folders @("teacher", "student", "server", "server-gui", "teacher-lite")
                 Copy-Alias -Folder "teacher" -AliasName "教師機部署包.exe"
                 Copy-Alias -Folder "student" -AliasName "學生機部署包.exe"
                 Copy-Alias -Folder "teacher-lite" -AliasName "教師機簡易版部署包.exe"
-                New-UpgradeZip
+                Invoke-UpgradePack
                 Show-DeployList
             } catch {
                 Show-Fail $_.Exception.Message
@@ -192,7 +153,7 @@ do {
                 Invoke-Pack -ScriptName "pack:student" -Label "學生機"
                 Copy-SetupsByFolder -Folders @("student")
                 Copy-Alias -Folder "student" -AliasName "學生機部署包.exe"
-                New-UpgradeZip
+                Invoke-UpgradePack
                 Show-DeployList
             } catch {
                 Show-Fail $_.Exception.Message
@@ -218,7 +179,7 @@ do {
                 Copy-Alias -Folder "teacher" -AliasName "教師機部署包.exe"
                 Copy-Alias -Folder "student" -AliasName "學生機部署包.exe"
                 Copy-Alias -Folder "teacher-lite" -AliasName "教師機簡易版部署包.exe"
-                New-UpgradeZip
+                Invoke-UpgradePack
                 Show-DeployList
             } catch {
                 Show-Fail $_.Exception.Message
@@ -226,7 +187,11 @@ do {
             pause
         }
         "6" {
-            try { New-UpgradeZip } catch { Show-Fail $_.Exception.Message }
+            try {
+                Invoke-UpgradePack
+            } catch {
+                Show-Fail $_.Exception.Message
+            }
             pause
         }
         "8" {
