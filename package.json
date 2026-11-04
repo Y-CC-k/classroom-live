@@ -10,7 +10,8 @@
     "packages/native",
     "packages/teacher",
     "packages/student",
-    "packages/sfu"
+    "packages/sfu",
+    "packages/teacher-lite"
   ],
   "scripts": {
     "dev:server": "npm run dev --workspace @classroom/server",
@@ -30,14 +31,17 @@
     "pack:sfu": "npm run build:sfu",
     "pack:all": "npm run build && npm run pack --workspace @classroom/teacher && npm run pack --workspace @classroom/student && npm run pack --workspace @classroom/server-gui",
     "make-upgrade-pack": "node scripts/make-upgrade-pack.mjs",
-    "typecheck": "npm run build --workspace @classroom/protocol && npm run build --workspace @classroom/sfu && npm run typecheck --workspace @classroom/protocol && npm run typecheck --workspace @classroom/server && npm run typecheck --workspace @classroom/teacher && npm run typecheck --workspace @classroom/student && npm run typecheck --workspace @classroom/server-gui && npm run typecheck --workspace @classroom/sfu",
+    "typecheck": "npm run build --workspace @classroom/protocol && npm run build --workspace @classroom/sfu && npm run typecheck --workspace @classroom/protocol && npm run typecheck --workspace @classroom/server && npm run typecheck --workspace @classroom/teacher && npm run typecheck --workspace @classroom/teacher-lite && npm run typecheck --workspace @classroom/student && npm run typecheck --workspace @classroom/server-gui && npm run typecheck --workspace @classroom/sfu",
     "lint": "eslint . --ext .ts,.tsx,.mjs",
     "format": "prettier --write .",
     "smoke": "node scripts/smoke-server.mjs && node scripts/smoke-wol.mjs",
     "clean": "node scripts/clean.mjs",
     "test:e2e": "npx.cmd vitest run --config vitest.e2e.config.ts",
     "test:e2e:headed": "npx.cmd vitest run --config vitest.e2e.config.ts --reporter=verbose",
-    "build:protocol": "npm run build --workspace @classroom/protocol"
+    "build:protocol": "npm run build --workspace @classroom/protocol",
+    "dev:teacher-lite": "npm run dev --workspace @classroom/teacher-lite",
+    "build:teacher-lite": "npm run build --workspace @classroom/teacher-lite",
+    "pack:teacher-lite": "npm run build:teacher-lite && npm run pack --workspace @classroom/teacher-lite"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
