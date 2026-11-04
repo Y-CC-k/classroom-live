@@ -60,6 +60,7 @@ let controllingPeer: string | null = null;
 let demoPeer: string | null = null;
 /** 學生示範啟動前是否正在廣播（結束示範後提示可重開） */
 let demoWasBroadcasting = false;
+let demoFirstFrameLogged = false;
 let controlImgUrl: string | null = null;
 
 /** 釋放已經被換掉的鏡像修正器（務必在 `setLocalStream()` 之後呼叫）。 */
@@ -860,8 +861,15 @@ async function connect(): Promise<void> {
         if (peerId === demoPeer) {
           void frame.blob.arrayBuffer().then(buf => {
             const sent = session?.relayFrame(buf) ?? 0;
-            if (sent === 0) log('warn', '示範畫面未送達任何學生機（可能都積塞或離線）');
+            if (sent === 0) log('warn', '[demo] 幀未送達任何學生機（積塞或離線）');
           });
+          if (!demoFirstFrameLogged) {
+            demoFirstFrameLogged = true;
+            log(
+              'info',
+              '[demo] 收到示範者第一幀（' + peerId + '，' + Math.round(frame.blob.size / 1024) + ' KB），開始轉發'
+            );
+          }
           if (monitorWall?.isVisible) monitorWall.handleWatchFrame(peerId, frame);
           else URL.revokeObjectURL(frame.url);
         } else {
@@ -1779,8 +1787,10 @@ function startDemo(peerId: string, name: string): void {
   // 全班進入 image 接收模式（學生端收到的 img 幀全部來自示範中繼）
   session.demoBroadcast(true);
   // 示範者高頻上傳（0.7 秒/張，走現有監看上傳路徑）
-  session.watchStudent(peerId, true, 700);
+  const watchOk = session.watchStudent(peerId, true, 700);
+  if (!watchOk) log('warn', '[demo] 上傳啟動失敗：示範者的控制通道未開（無法開始示範）');
   demoPeer = peerId;
+  log('info', '[demo] 開始轉播 ' + name + '（peerId=' + peerId + '）');
   log('info', `📢 學生示範開始：${name} 的畫面正在播給全班。再點一次 📢 或按 ESC 結束。`);
 }
 
@@ -1802,6 +1812,7 @@ function stopDemo(): void {
     log('info', `📢 學生示範結束（${name}）。`);
   }
   demoWasBroadcasting = false;
+  demoFirstFrameLogged = false;
 }
 
 /** 切換學生示範：同一台再點＝結束；點別台＝切換示範對象 */

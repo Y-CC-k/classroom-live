@@ -540,6 +540,7 @@ function showBroadcast(on: boolean, mode: BroadcastMode = broadcastMode): void {
     // 畫面清乾淨：圖片模式要撤掉最後一張 JPEG（video 保留 srcObject），
     // 學生不能停下廣播後還看著上張圖以為老師還在播。
     els.broadcastImg.removeAttribute('src');
+    imgFirstFrameLogged = false;
     // 分清楚兩種「沒有畫面」：
     //   1. 上課中老師按了停止 → 要講清楚是「停止了」
     //   2. 一連上就還沒開始廣播 → 只是還沒開始，講「已停止」會讓學生一頭霧水
@@ -712,6 +713,7 @@ function closeBroadcast(): void {
  */
 let incomingImg: { size: number; chunks: Uint8Array[]; received: number } | null = null;
 let lastImgUrl: string | null = null;
+let imgFirstFrameLogged = false;
 
 /** 圖片通道：hdr(JSON) → JPEG 裸分片 → end(JSON)。end 一到就組起來顯示。 */
 async function handleImgChannel(data: unknown): Promise<void> {
@@ -741,6 +743,10 @@ async function handleImgChannel(data: unknown): Promise<void> {
     if (lastImgUrl) URL.revokeObjectURL(lastImgUrl);
     lastImgUrl = url;
     els.broadcastImg.src = url;
+    if (!imgFirstFrameLogged) {
+      imgFirstFrameLogged = true;
+      log('info', '[demo] 收到第一張畫面（' + Math.round(blob.size / 1024) + ' KB），顯示中');
+    }
     return;
   }
   // 二進位分片
@@ -1104,6 +1110,7 @@ async function handleControl(raw: unknown): Promise<void> {
       // 看起來像老師還在播（學生就會一直盯著不會動的畫面）。
       // 舊版教師機不會帶 mode → 視為 video，行為跟以前完全一樣。
       const on = Boolean(message.on);
+      log('info', '[demo] 廣播指令 on=' + on + ' mode=' + (message.mode ?? 'video'));
       showBroadcast(on, message.mode ?? 'video');
       // 廣播強制模式：置頂＋全螢幕（靜音／關網頁已改為教師端獨立按鍵）
       broadcastActive = on;

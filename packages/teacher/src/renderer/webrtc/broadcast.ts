@@ -729,6 +729,13 @@ export class BroadcastManager {
     const channels = [...this.links.values()]
       .map(link => link.img)
       .filter((c): c is RTCDataChannel => c !== null && c !== undefined && c.readyState === 'open');
+    if (channels.length === 0) {
+      const total = this.links.size;
+      const states = [...this.links.values()]
+        .map(l => `${l.state.info.id}:img=${l.img ? l.img.readyState : 'null'}`)
+        .join(', ');
+      this.options.onLog('warn', `[demo] 中繼失敗：img 通道 0/${total}（${states}）`);
+    }
     let sent = 0;
     for (const channel of channels) {
       if (channel.bufferedAmount > 512 * 1024) continue; // 積塞保護
@@ -753,9 +760,14 @@ export class BroadcastManager {
    * img 幀全部來自示範中繼。
    */
   demoBroadcast(on: boolean): void {
-    for (const peerId of this.links.keys()) {
-      this.sendCtl(peerId, { t: 'broadcast', on, mode: 'image' });
+    let ok = 0;
+    for (const [, link] of this.links) {
+      if (link.ctl?.readyState === 'open') {
+        this.sendCtl(link.state.info.id, { t: 'broadcast', on, mode: 'image' });
+        ok++;
+      }
     }
+    this.options.onLog('info', `[demo] 接收模式 ${on ? 'on' : 'off'} 已通知 ${ok}/${this.links.size} 台`);
   }
 
   /**
