@@ -164,6 +164,7 @@ function Show-Menu {
     Write-Host "  [5] 不重新打包，把現有結果更新到 deploy（安裝包 + 兩個 zip）" -ForegroundColor White
     Write-Host "  [6] 只產生 學生機升級包.zip（熱更新用，不打包）" -ForegroundColor White
     Write-Host "  [7] 只產生 學生機部署包.zip（整包，不打包）" -ForegroundColor White
+    Write-Host "  [8] 只打包教師機（簡易版）+ 更新 deploy" -ForegroundColor White
     Write-Host "  [0] 結束" -ForegroundColor DarkGray
     Write-Host ""
 }
@@ -178,9 +179,11 @@ do {
             try {
                 if (-not (Ensure-DeployDir)) { throw "無法使用 C:\deploy" }
                 Invoke-Pack -ScriptName "pack:all" -Label "全部（教師機/學生機/伺服器/伺服器GUI）"
-                Copy-SetupsByFolder -Folders @("teacher", "student", "server", "server-gui")
+                Invoke-Pack -ScriptName "pack:teacher-lite" -Label "教師機（簡易版）"
+                Copy-SetupsByFolder -Folders @("teacher", "student", "server", "server-gui", "teacher-lite")
                 Copy-Alias -Folder "teacher" -AliasName "教師機部署包.exe"
                 Copy-Alias -Folder "student" -AliasName "學生機部署包.exe"
+                Copy-Alias -Folder "teacher-lite" -AliasName "教師機簡易版部署包.exe"
                 New-DeployZip
                 New-UpgradeZip
                 Show-DeployList
@@ -231,9 +234,10 @@ do {
         "5" {
             try {
                 if (-not (Ensure-DeployDir)) { throw "無法使用 C:\deploy" }
-                Copy-SetupsByFolder -Folders @("teacher", "student", "server", "server-gui")
+                Copy-SetupsByFolder -Folders @("teacher", "student", "server", "server-gui", "teacher-lite")
                 Copy-Alias -Folder "teacher" -AliasName "教師機部署包.exe"
                 Copy-Alias -Folder "student" -AliasName "學生機部署包.exe"
+                Copy-Alias -Folder "teacher-lite" -AliasName "教師機簡易版部署包.exe"
                 New-DeployZip
                 New-UpgradeZip
                 Show-DeployList
@@ -248,6 +252,18 @@ do {
         }
         "7" {
             try { New-DeployZip } catch { Show-Fail $_.Exception.Message }
+            pause
+        }
+        "8" {
+            try {
+                if (-not (Ensure-DeployDir)) { throw "無法使用 C:\deploy" }
+                Invoke-Pack -ScriptName "pack:teacher-lite" -Label "教師機（簡易版）"
+                Copy-SetupsByFolder -Folders @("teacher-lite")
+                Copy-Alias -Folder "teacher-lite" -AliasName "教師機簡易版部署包.exe"
+                Show-DeployList
+            } catch {
+                Show-Fail $_.Exception.Message
+            }
             pause
         }
         "0" {
