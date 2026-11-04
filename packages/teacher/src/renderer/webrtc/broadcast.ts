@@ -8,6 +8,7 @@ import {
   type ScreenMeta,
   type SfuTransportOptions,
 } from '@classroom/protocol';
+import { FILE_CHUNK_SIZE } from '@classroom/protocol';
 import { SignalingClient } from '@classroom/protocol/client';
 import { ImagePump } from '../image-pump.js';
 import type { Link, TeacherSessionOptions, StudentState } from './types.js';
@@ -720,12 +721,29 @@ export class BroadcastManager {
   }
 
   /**
-   * 學生示範中繼：把示範學生機上傳的 JPEG 幀轉發給所有學生機。
-   * 走與教師廣播完全相同的 img 通道與信封（img-hdr → 分片 → img-end），
-   * 學生端零修改——收到後與教師廣播同一套顯示路徑。
+   * 學生示範中繼：把示範學生機上傳的 JPEG 幀轉發給**所有**已連線學生機。
+   * 刻意不經過 pump.getChannels()（那會被「只播勾選台」的 targets 過濾），
+   * 示範一律送全班。信封與教師廣播相同（img-hdr → 分片 → img-end）。
    */
   relayFrame(buffer: ArrayBuffer): number {
-    return this.pump.relayFrame(buffer);
+    const channels = [...this.links.values()]
+      .map(link => link.img)
+      .filter((c): c is RTCDataChannel => c !== null && c !== undefined && c.readyState === 'open');
+    let sent = 0;
+    for (const channel of channels) {
+      if (channel.bufferedAmount > 512 * 1024) continue; // 積塞保護
+      try {
+        channel.send(JSON.stringify({ t: 'img-hdr', size: buffer.byteLength }));
+        for (let offset = 0; offset < buffer.byteLength; offset += FILE_CHUNK_SIZE) {
+          channel.send(buffer.slice(offset, Math.min(offset + FILE_CHUNK_SIZE, buffer.byteLength)));
+        }
+        channel.send(JSON.stringify({ t: 'img-end' }));
+        sent++;
+      } catch {
+        // 單台失敗不影響其他台
+      }
+    }
+    return sent;
   }
 
   /**
@@ -738,6 +756,30 @@ export class BroadcastManager {
     for (const peerId of this.links.keys()) {
       this.sendCtl(peerId, { t: 'broadcast', on, mode: 'image' });
     }
+  }
+
+  /**
+   * 學生示範用：暫停教師自己的圖片泵（**不發 broadcast off**，
+   * 避免覆蓋示範的 broadcast on 造成學生機黑屏「等待教師廣播」）。
+   * 學生機仍處於 image 接收模式，接下來只會收到示範中繼幀。
+   */
+  pauseTeacherPump(): void {
+    this.pump.stop();
+  }
+
+  /**
+   * 學生示範結束後恢復教師廣播：僅在「image 模式且有串流」時恢復
+   * （pump 重啟 + 重發 broadcast on）。video 模式由教師端手動重開廣播。
+   */
+  resumeTeacherPump(): boolean {
+    if (this.options.broadcastMode !== 'image') return false;
+    const stream = this.getLocalStream();
+    if (!stream) return false;
+    this.pump.start(stream);
+    for (const peerId of this.links.keys()) {
+      this.sendCtl(peerId, { t: 'broadcast', on: true, mode: 'image' });
+    }
+    return true;
   }
   getBroadcastTargets(): Set<string> | null {
     return this.broadcastTargets;

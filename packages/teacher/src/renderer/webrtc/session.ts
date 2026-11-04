@@ -404,6 +404,16 @@ export class TeacherSession {
     this.broadcastManager.demoBroadcast(on);
   }
 
+  /** 學生示範用：暫停教師圖片泵（不發 broadcast off，避免黑屏競態） */
+  pauseTeacherPump(): void {
+    this.broadcastManager.pauseTeacherPump();
+  }
+
+  /** 學生示範結束後恢復教師廣播（image 模式）；回傳是否成功恢復 */
+  resumeTeacherPump(): boolean {
+    return this.broadcastManager.resumeTeacherPump();
+  }
+
   /** 進入遠端接管（單台）：送 control 模式，回傳是否成功。 */
   controlStart(peerId: string): boolean {
     const link = this.broadcastManager.getLinks().get(peerId);

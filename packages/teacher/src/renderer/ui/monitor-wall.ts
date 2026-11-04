@@ -364,7 +364,7 @@ export class MonitorWall {
     // 5 秒一張：29 台同時監看時總下行約 1.5 Mbps（3 秒時為 3+ Mbps），
     // 監控牆用途（確認學生在不在/做什麼）不需要更快。
     if (watchable.length > 0) {
-      this.session.watchStudents(watchable, 5000);
+      this.session.watchStudents(watchable, 3000);
     }
 
     this.renderGrid();

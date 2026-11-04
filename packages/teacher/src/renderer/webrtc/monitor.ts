@@ -55,7 +55,7 @@ export class MonitorManager {
     const link = this.links.get(peerId);
     if (on) {
       if (link?.ctl?.readyState !== 'open') return false;
-      if (!Number.isFinite(intervalMs) || intervalMs < 1000) intervalMs = 1000;
+      if (!Number.isFinite(intervalMs) || intervalMs < 500) intervalMs = 500;
       this.sendCtl(peerId, { t: 'watch', on: true, intervalMs: Math.round(intervalMs) });
       return true;
     }

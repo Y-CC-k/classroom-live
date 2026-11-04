@@ -855,15 +855,18 @@ async function connect(): Promise<void> {
     },
     // 單台螢幕監看：每 3 秒一張，組完幀即顯示在右下角浮動小窗
     onWatchFrame: (peerId, frame) => {
-      // 學生示範中繼：示範者的幀不顯示，直接轉發給全班（img 通道）
+      // 學生示範中繼：示範者的幀轉發給全班；監控牆若開著也同步顯示
       if (demoPeer) {
         if (peerId === demoPeer) {
           void frame.blob.arrayBuffer().then(buf => {
             const sent = session?.relayFrame(buf) ?? 0;
             if (sent === 0) log('warn', '示範畫面未送達任何學生機（可能都積塞或離線）');
           });
+          if (monitorWall?.isVisible) monitorWall.handleWatchFrame(peerId, frame);
+          else URL.revokeObjectURL(frame.url);
+        } else {
+          URL.revokeObjectURL(frame.url);
         }
-        URL.revokeObjectURL(frame.url);
         return;
       }
       if (controllingPeer === peerId) {
@@ -1770,11 +1773,9 @@ function startDemo(peerId: string, name: string): void {
     return;
   }
   demoWasBroadcasting = Boolean(localStream);
-  if (localStream) {
-    // 示範畫面與教師廣播共用同一條 img 通道：先停教師廣播避免兩種畫面交錯
-    void stopBroadcast();
-    log('info', '學生示範啟動：教師廣播已自動停止（結束示範後可再開）。');
-  }
+  // 暫停教師泵但**不發 broadcast off**——若走 stopBroadcast，其 broadcast off
+  // 會異步覆蓋示範的 broadcast on，學生機就會黑屏「等待教師廣播」。
+  session.pauseTeacherPump();
   // 全班進入 image 接收模式（學生端收到的 img 幀全部來自示範中繼）
   session.demoBroadcast(true);
   // 示範者高頻上傳（0.7 秒/張，走現有監看上傳路徑）
@@ -1790,10 +1791,17 @@ function stopDemo(): void {
   session?.watchStudent(demoPeer, false);
   session?.demoBroadcast(false);
   demoPeer = null;
-  log(
-    'info',
-    `📢 學生示範結束（${name}）。` + (demoWasBroadcasting ? '教師廣播已停止，需要時請再按「開始廣播」。' : '')
-  );
+  if (demoWasBroadcasting) {
+    // 恢復教師廣播（image 模式）：pump 重啟 + 重發 broadcast on
+    const resumed = session?.resumeTeacherPump() ?? false;
+    log(
+      'info',
+      resumed ? '📢 學生示範結束，教師廣播已恢復。' : '📢 學生示範結束。教師廣播已停止，需要時請再按「開始廣播」。'
+    );
+  } else {
+    log('info', `📢 學生示範結束（${name}）。`);
+  }
+  demoWasBroadcasting = false;
 }
 
 /** 切換學生示範：同一台再點＝結束；點別台＝切換示範對象 */
