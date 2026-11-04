@@ -60,23 +60,6 @@ function Get-StudentUnpack {
     return $unpack
 }
 
-function New-DeployZip {
-    $unpack = Get-StudentUnpack
-    if (-not $unpack) { Show-Warn "找不到學生機 win-unpacked"; return }
-    $zipOut = Join-Path $PSScriptRoot "學生機部署包.zip"
-    try {
-        if (Test-Path $zipOut) { Remove-Item $zipOut -Force }
-        Write-Host "  使用 $($unpack.FullName)（整包壓縮，速度較慢）" -ForegroundColor Gray
-        Compress-Archive -Path (Join-Path $unpack.FullName "*") -DestinationPath $zipOut -CompressionLevel Optimal -Force -ErrorAction Stop
-        if (Test-Path $deployDir) {
-            Copy-Item $zipOut -Destination (Join-Path $deployDir "學生機部署包.zip") -Force -ErrorAction Stop
-        }
-        $mb = [math]::Round((Get-Item $zipOut).Length / 1MB, 2)
-        Show-Ok "學生機部署包.zip 完成（$mb MB）"
-    } catch {
-        Show-Warn "學生機部署包.zip 失敗：$($_.Exception.Message)"
-    }
-}
 
 function New-UpgradeZip {
     $unpack = Get-StudentUnpack
@@ -157,13 +140,12 @@ function Show-Menu {
     Show-Info "   Classroom Live - 打包部署選單"
     Show-Info "==================================================="
     Write-Host ""
-    Write-Host "  [1] 全套打包 + 更新 deploy（pack:all + 安裝包 + 部署包.zip + 升級包.zip）" -ForegroundColor White
+    Write-Host "  [1] 全套打包 + 更新 deploy（pack:all + 安裝包 + 升級包.zip）" -ForegroundColor White
     Write-Host "  [2] 只打包教師機 + 更新 deploy" -ForegroundColor White
-    Write-Host "  [3] 只打包學生機 + 更新 deploy（含部署包.zip / 升級包.zip）" -ForegroundColor White
+    Write-Host "  [3] 只打包學生機 + 更新 deploy（含升級包.zip）" -ForegroundColor White
     Write-Host "  [4] 只打包伺服器 + 伺服器GUI + 更新 deploy" -ForegroundColor White
     Write-Host "  [5] 不重新打包，把現有結果更新到 deploy（安裝包 + 兩個 zip）" -ForegroundColor White
     Write-Host "  [6] 只產生 學生機升級包.zip（熱更新用，不打包）" -ForegroundColor White
-    Write-Host "  [7] 只產生 學生機部署包.zip（整包，不打包）" -ForegroundColor White
     Write-Host "  [8] 只打包教師機（簡易版）+ 更新 deploy" -ForegroundColor White
     Write-Host "  [0] 結束" -ForegroundColor DarkGray
     Write-Host ""
@@ -184,7 +166,6 @@ do {
                 Copy-Alias -Folder "teacher" -AliasName "教師機部署包.exe"
                 Copy-Alias -Folder "student" -AliasName "學生機部署包.exe"
                 Copy-Alias -Folder "teacher-lite" -AliasName "教師機簡易版部署包.exe"
-                New-DeployZip
                 New-UpgradeZip
                 Show-DeployList
             } catch {
@@ -211,7 +192,6 @@ do {
                 Invoke-Pack -ScriptName "pack:student" -Label "學生機"
                 Copy-SetupsByFolder -Folders @("student")
                 Copy-Alias -Folder "student" -AliasName "學生機部署包.exe"
-                New-DeployZip
                 New-UpgradeZip
                 Show-DeployList
             } catch {
@@ -238,7 +218,6 @@ do {
                 Copy-Alias -Folder "teacher" -AliasName "教師機部署包.exe"
                 Copy-Alias -Folder "student" -AliasName "學生機部署包.exe"
                 Copy-Alias -Folder "teacher-lite" -AliasName "教師機簡易版部署包.exe"
-                New-DeployZip
                 New-UpgradeZip
                 Show-DeployList
             } catch {
@@ -248,10 +227,6 @@ do {
         }
         "6" {
             try { New-UpgradeZip } catch { Show-Fail $_.Exception.Message }
-            pause
-        }
-        "7" {
-            try { New-DeployZip } catch { Show-Fail $_.Exception.Message }
             pause
         }
         "8" {
