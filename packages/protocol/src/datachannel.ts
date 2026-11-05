@@ -86,6 +86,8 @@ export type CtlMessage =
   | { t: 'demo-frame-begin'; seq: number; width: number; height: number; total: number }
   | { t: 'demo-chunk'; seq: number; part: number; b64: string }
   | { t: 'demo-frame-end'; seq: number }
+  /** 舉手信號的教師端確認（閉環：學生機螢幕直接顯示信號走到哪） */
+  | { t: 'hand-ack'; on: boolean; visible: boolean }
   /**
    * 教師端的獨立「靜音」指令（右欄按鍵；與廣播開關脫鉤）：
    * 學生端持續維持系統靜音（每 3 秒重設），off = 解除並還原聲音。

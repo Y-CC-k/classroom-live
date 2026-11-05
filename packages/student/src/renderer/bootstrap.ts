@@ -1425,6 +1425,14 @@ async function handleControl(raw: unknown): Promise<void> {
       }
       break;
     }
+    case 'hand-ack': {
+      const on = Boolean((message as { on?: boolean }).on);
+      const visible = Boolean((message as { visible?: boolean }).visible);
+      if (on && visible) setBanner('✅ 老師已收到你的舉手（等待點名）', 'ok');
+      else if (on) setBanner('🙋 舉手已送出（老師目前授課中）', 'warn');
+      else setBanner('已收回舉手', 'idle');
+      break;
+    }
     case 'lock': {
       // 鎖定／解除鍵盤滑鼠（課堂秩序）。
       // 畫面刻意不動：正在廣播就繼續廣播（強制模式照常），沒在廣播就維持原畫面；

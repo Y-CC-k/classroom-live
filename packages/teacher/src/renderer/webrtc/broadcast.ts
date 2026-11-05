@@ -482,7 +482,12 @@ export class BroadcastManager {
         } else if (learning && !parsed.on) {
           this.options.onLog('hand', `🙋 ${link.state.info.name} 收回舉手`);
         }
-        // 非學習操作模式：靜默不回應（依需求）
+        // 非學習操作模式：灰色中性提示（綠色記錄仍只在學習模式）
+        if (parsed.on) {
+          this.options.onLog('info', `（教學活動中，已忽略 ${link.state.info.name} 的舉手）`);
+        }
+        // 閉環確認：告訴學生機「教師端收到了」與「會不會顯示」
+        this.sendCtl(peerId, { t: 'hand-ack', on: Boolean(parsed.on), visible: learning });
         return;
       }
       if (parsed.t === 'demo-ack') {
