@@ -809,47 +809,7 @@ select:disabled {
 }
 
 /* 監控牆 🎮 按鈕（hover 顯示） */
-.wall-cell-control {
-  position: absolute;
-  top: 4px;
-  right: 4px;
-  z-index: 3;
-  opacity: 0;
-  transition: opacity 0.15s ease;
-  background: rgba(0, 0, 0, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.4);
-  border-radius: 6px;
-  color: #fff;
-  cursor: pointer;
-  font-size: 14px;
-  padding: 2px 6px;
-}
-
-.wall-cell:hover .wall-cell-control {
-  opacity: 1;
-}
-
 /* 監控牆 📸 收藏按鈕：hover 格子才顯示 */
-.wall-cell-snap {
-  position: absolute;
-  top: 4px;
-  right: 38px;
-  z-index: 3;
-  opacity: 0;
-  transition: opacity 0.15s ease;
-  background: rgba(0, 0, 0, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.4);
-  border-radius: 6px;
-  color: #fff;
-  cursor: pointer;
-  font-size: 14px;
-  padding: 2px 6px;
-}
-
-.wall-cell:hover .wall-cell-snap {
-  opacity: 1;
-}
-
 /* ───────────── 遠端接管 UI（畫面 1:1 原尺寸顯示，不放大、保持清晰） ───────────── */
 .control-img {
   /* 不強制填滿：原始解析度內 1:1 顯示（清晰），視窗比畫面小時才等比縮小 */
@@ -876,20 +836,6 @@ select:disabled {
   padding: 10px 24px;
   font-size: 16px;
   font-weight: 700;
-}
-
-.wall-cell-snap,
-.wall-cell-control,
-.wall-cell-demo {
-  font-size: 15px;
-  padding: 3px 8px;
-  opacity: 0.92;
-}
-
-.wall-cell:hover .wall-cell-snap,
-.wall-cell:hover .wall-cell-control {
-  opacity: 1;
-  transform: scale(1.08);
 }
 
 /* ───────────── 多螢幕監控牆（容器＋格子；樣式曾整段缺失） ───────────── */
@@ -967,38 +913,7 @@ select:disabled {
 }
 
 /* ── 修正：按鈕加大後的重疊與擠壓 ── */
-.wall-cell-control {
-  right: 4px;
-}
-
 /* 📢 示範按鈕：樣式同接管鈕，位置在接管鈕左側 */
-.wall-cell.demoing .wall-cell-demo {
-  opacity: 1;
-  background: rgba(224, 49, 49, 0.95);
-}
-
-.wall-cell-demo {
-  position: absolute;
-  top: 4px;
-  right: 72px;
-  z-index: 3;
-  opacity: 0;
-  transition: opacity 0.15s ease;
-  background: rgba(0, 0, 0, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.4);
-  border-radius: 6px;
-  color: #fff;
-  cursor: pointer;
-  font-size: 15px;
-  padding: 4px 10px;
-  opacity: 0.9;
-  border-width: 2px;
-}
-
-.wall-cell:hover .wall-cell-demo {
-  opacity: 1;
-}
-
 .control-head {
   flex-wrap: wrap;
   row-gap: 6px;
@@ -1015,4 +930,39 @@ select:disabled {
   height: auto;
   width: 100%;
   object-fit: contain;
+}
+
+
+/* ============ wall cell buttons (unified) ============ */
+.wall-cell-snap,
+.wall-cell-control,
+.wall-cell-demo {
+  position: absolute;
+  top: 6px;
+  z-index: 3;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  background: rgba(0, 0, 0, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  border-radius: 6px;
+  color: #fff;
+  cursor: pointer;
+  font-size: 15px;
+  line-height: 1.2;
+  padding: 3px 9px;
+}
+
+.wall-cell-snap { right: 6px; }
+.wall-cell-control { right: 44px; }
+.wall-cell-demo { right: 82px; }
+
+.wall-cell:hover .wall-cell-snap,
+.wall-cell:hover .wall-cell-control,
+.wall-cell:hover .wall-cell-demo {
+  opacity: 1;
+}
+
+.wall-cell.demoing .wall-cell-demo {
+  opacity: 1;
+  background: rgba(224, 49, 49, 0.95);
 }
