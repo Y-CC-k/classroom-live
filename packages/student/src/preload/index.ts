@@ -41,7 +41,6 @@ const api: StudentApi = {
   setInputLock: (on: boolean) => ipcRenderer.invoke(IPC.setInputLock, on) as Promise<boolean>,
   requestShutdown: (delaySec: number) => ipcRenderer.invoke(IPC.requestShutdown, delaySec) as Promise<boolean>,
   applyUpdate: () => ipcRenderer.invoke(IPC.applyUpdate) as Promise<{ ok: boolean; reason?: string }>,
-  silentUpdate: () => ipcRenderer.invoke(IPC.silentUpdate) as Promise<{ ok: boolean; reason?: string }>,
   getIdleImage: () => ipcRenderer.invoke(IPC.getIdleImage) as Promise<string | null>,
   discoverServers: (timeoutMs?: number) =>
     ipcRenderer.invoke(IPC.discoverServers, timeoutMs) as Promise<{ wsUrl: string }[]>,

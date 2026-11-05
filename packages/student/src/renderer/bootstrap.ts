@@ -1450,17 +1450,6 @@ async function handleControl(raw: unknown): Promise<void> {
       }
       break;
     }
-    case 'silent-update': {
-      log('info', 'teacher requested silent update (install + restart)');
-      void window.studentApi
-        .silentUpdate()
-        .then(r => {
-          if (r.ok) log('info', 'silent install started (reboot in 12s)');
-          else log('warn', 'silent update failed: ' + (r.reason ?? ''));
-        })
-        .catch(e => log('warn', 'silent update error: ' + (e instanceof Error ? e.message : String(e))));
-      break;
-    }
     case 'hand-ack': {
       const on = Boolean((message as { on?: boolean }).on);
       const visible = Boolean((message as { visible?: boolean }).visible);

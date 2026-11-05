@@ -5,7 +5,6 @@ import { app, ipcMain } from 'electron';
 
 import { shell } from 'electron';
 
-import { getResolvedSaveDir } from './file-recv.js';
 import { IPC } from '../../shared/ipc.js';
 import { getConfig } from '../store.js';
 import { detectNetworkInfo } from '../local-ip.js';
@@ -123,45 +122,5 @@ export function registerSystemCommandsIpc(): void {
       return { error: '找不到可擷取的螢幕' };
     }
     return { id: sources[0]!.id };
-  });
-
-  // silent update: run latest Setup.exe from save dir (/S), wait, start new app.
-  // detached cmd survives the app being killed by the installer.
-  ipcMain.handle(IPC.silentUpdate, async () => {
-    try {
-      const dir = getResolvedSaveDir();
-      if (!dir || !fs.existsSync(dir)) return { ok: false, reason: 'save dir missing: ' + dir };
-      const setups = fs
-        .readdirSync(dir)
-        .filter(f => f.includes('Setup') && f.endsWith('.exe'))
-        .map(f => ({ name: f, at: fs.statSync(path.join(dir, f)).mtimeMs }))
-        .sort((x, y) => (y ? y.at : 0) - (x ? x.at : 0));
-      if (setups.length === 0) return { ok: false, reason: 'no Setup.exe in save dir' };
-      const latest = setups[0];
-      if (!latest) return { ok: false, reason: 'no Setup.exe in save dir' };
-      const setupPath = path.join(dir, latest.name);
-      const exePath = process.execPath;
-      // 暫存 .bat（安裝 → 等待 → 啟動新版）：bat 內引號直寫無轉義問題，
-      // detached 獨立於學生機行程——安裝器關掉本程式後 bat 仍會跑完。
-      const batPath = path.join(app.getPath('temp'), 'classroom-silent-update.bat');
-      fs.writeFileSync(
-        batPath,
-        [
-          '@echo off',
-          `"${setupPath}" /S`,
-          'timeout /t 6 /nobreak >nul',
-          `start "" "${exePath}"`,
-          'del "%~f0"',
-        ].join('\r\n'),
-        'utf8'
-      );
-      spawn(batPath, [], { detached: true, windowsHide: true, stdio: 'ignore' }).unref();
-      console.log('[silent-update] started:', latest.name);
-      // 給安裝器幾秒接管，然後本程式自行退出（NSIS 才能覆蓋檔案）
-      setTimeout(() => app.exit(0), 4000);
-      return { ok: true, message: 'silent install started' };
-    } catch (error) {
-      return { ok: false, reason: error instanceof Error ? error.message : String(error) };
-    }
   });
 }
