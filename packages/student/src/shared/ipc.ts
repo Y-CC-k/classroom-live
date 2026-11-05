@@ -73,7 +73,7 @@ export const EVENTS = {
   mainLog: 'student:main-log',
 } as const;
 
-export type HostCommand = 'reconnect' | 'toggle-fullscreen';
+export type HostCommand = 'reconnect' | 'toggle-fullscreen' | 'hand-raise';
 
 export interface StudentConfig {
   serverUrl: string;

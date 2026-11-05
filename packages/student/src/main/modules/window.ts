@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { BrowserWindow, nativeImage, Tray, Menu, app, dialog, ipcMain, powerSaveBlocker } from 'electron';
+import { BrowserWindow, nativeImage, Tray, Menu, app, dialog, ipcMain, powerSaveBlocker, globalShortcut } from 'electron';
 
 import { EVENTS, IPC, type HostCommand } from '../../shared/ipc.js';
 import { TRAY_ICON_PNG_BASE64 } from '../../shared/tray-icon.js';
@@ -164,6 +164,24 @@ export function initializeApp(): void {
   }
 
   app.setAppUserModelId('com.classroom.student');
+
+  // F1 舉手：系統級全局熱鍵——學生機縮在系統匣（窗口隱藏、無焦點）時也要能觸發，
+  // 所以不能用 renderer 的 keydown（窗口隱藏時收不到鍵盤事件）。
+  try {
+    globalShortcut.register('F1', () => {
+      notifyRenderer('hand-raise');
+    });
+    console.log('[hand] F1 全局熱鍵已註冊');
+  } catch (error) {
+    console.error('[hand] F1 熱鍵註冊失敗', error);
+  }
+  app.on('will-quit', () => {
+    try {
+      globalShortcut.unregisterAll();
+    } catch {
+      /* 退出清理失敗不影響 */
+    }
+  });
 
   app.on('second-instance', () => {
     mainWindow?.show();

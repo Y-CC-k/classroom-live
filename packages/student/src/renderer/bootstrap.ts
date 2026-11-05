@@ -788,6 +788,14 @@ let imgFirstFrameLogged = false;
 /** 學生示範下行組幀桶（evt 通道） */
 let evtDownlinkSeen = false;
 let handRaised = false;
+
+/** 舉手／收回（切換；教師端依課堂模式決定是否回應） */
+function toggleHandRaise(): void {
+  handRaised = !handRaised;
+  sendEvt({ t: 'hand-raise', on: handRaised, ts: Date.now() });
+  setBanner(handRaised ? '🙋 已舉手，等待老師點名' : '已收回舉手', handRaised ? 'ok' : 'idle');
+  log('info', handRaised ? '🙋 已舉手（信號已送出）' : '已收回舉手');
+}
 let demoIncoming: {
   seq: number;
   width: number;
@@ -1645,6 +1653,9 @@ function bindEvents(): void {
       case 'toggle-fullscreen':
         void window.studentApi.setFullscreen(!document.fullscreenElement).then(() => undefined);
         break;
+      case 'hand-raise':
+        toggleHandRaise();
+        break;
       default:
         break;
     }
@@ -1656,14 +1667,7 @@ function bindEvents(): void {
     log('info', `[main] ${line}`);
   });
 
-  // F1 舉手／收回（切換；送 evt 上行，教師端依課堂模式決定是否回應）
-  window.addEventListener('keydown', event => {
-    if (event.key !== 'F1') return;
-    event.preventDefault();
-    handRaised = !handRaised;
-    sendEvt({ t: 'hand-raise', on: handRaised, ts: Date.now() });
-    log('info', handRaised ? '🙋 已舉手（信號已送出）' : '已收回舉手');
-  });
+  // F1 舉手由主行程 globalShortcut 觸發（窗口縮在系統匣也能按），見 onCommand
 
   // Esc 先收選單
   window.addEventListener('keydown', event => {
