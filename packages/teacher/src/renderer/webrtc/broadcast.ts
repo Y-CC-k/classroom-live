@@ -473,6 +473,13 @@ export class BroadcastManager {
         return;
       }
       link.state.lastSeenAt = Date.now();
+      if (parsed.t === 'demo-ack') {
+        this.options.onLog(
+          'info',
+          `[demo] ${link.state.info.name} ${parsed.stage === 'begin' ? '已開始接收示範' : '已收到示範畫面'}`
+        );
+        return;
+      }
       // evt 承載 evt-hello（學生就緒回報）、監看幀信封、檔案結果與 pong（心跳回應）
       if (parsed.t === 'evt-hello') {
         // 版本戳：學生機升級後老師記錄一眼看出它跑哪一版。

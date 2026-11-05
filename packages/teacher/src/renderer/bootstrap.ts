@@ -1814,6 +1814,8 @@ function stopDemo(): void {
   const name = session?.students().find(s => s.info.id === demoPeer)?.info.name ?? demoPeer;
   session?.watchStudent(demoPeer, false);
   session?.demoBroadcast(false, demoPeer);
+  // 監控牆若開著：示範者剛被 watch off，重新以 3 秒監看讓牆面持續更新
+  if (monitorWall?.isVisible) session?.watchStudent(demoPeer, true, 3000);
   demoPeer = null;
   document.querySelectorAll('.wall-cell.demoing').forEach(el => el.classList.remove('demoing'));
   els.btnMonitorWall.textContent = '🖥 監控牆';

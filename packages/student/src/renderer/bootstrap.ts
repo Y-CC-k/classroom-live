@@ -1383,6 +1383,7 @@ async function handleControl(raw: unknown): Promise<void> {
         parts: new Map(),
       };
       setBanner('📡 正在接收示範畫面…', 'ok');
+      sendEvt({ t: 'demo-ack', stage: 'begin', ts: Date.now() });
       break;
     }
     case 'demo-chunk': {
@@ -1405,6 +1406,7 @@ async function handleControl(raw: unknown): Promise<void> {
           if (!imgFirstFrameLogged) {
             imgFirstFrameLogged = true;
             log('info', '[demo/ctl] 收到第一張示範畫面（' + Math.round(blob.size / 1024) + ' KB）');
+            sendEvt({ t: 'demo-ack', stage: 'frame', ts: Date.now() });
           }
         } catch (error) {
           log('warn', '示範畫面組幀失敗：' + (error instanceof Error ? error.message : String(error)));
