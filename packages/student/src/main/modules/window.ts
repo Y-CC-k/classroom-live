@@ -169,15 +169,18 @@ export function initializeApp(): void {
   // 所以不能用 renderer 的 keydown（窗口隱藏時收不到鍵盤事件）。
   app.whenReady().then(() => {
     try {
-      const ok = globalShortcut.register('F1', () => {
+      const fire = () => {
         mainWindow?.show();
         mainWindow?.focus();
         notifyRenderer('hand-raise');
-      });
-      if (ok) console.log('[hand] F1 OK');
-      else console.error('[hand] F1 register FAILED');
+      };
+      const registered: string[] = [];
+      if (globalShortcut.register('F1', fire)) registered.push('F1');
+      if (globalShortcut.register('Control+Alt+F1', fire)) registered.push('Ctrl+Alt+F1');
+      if (registered.length > 0) console.log('[hand] hotkeys: ' + registered.join(' + '));
+      else console.error('[hand] all hotkeys FAILED');
     } catch (error) {
-      console.error('[hand] F1 register error', error);
+      console.error('[hand] register error', error);
     }
   });
   app.on('will-quit', () => {
