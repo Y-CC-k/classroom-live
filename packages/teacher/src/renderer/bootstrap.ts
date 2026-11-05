@@ -176,6 +176,7 @@ const els = {
   boardPenTool: $<HTMLButtonElement>('board-tool-pen'),
   boardEraserTool: $<HTMLButtonElement>('board-tool-eraser'),
   btnCleanFiles: $<HTMLButtonElement>('btn-clean-files'),
+  btnSilentUpdate: $<HTMLButtonElement>('btn-silent-update'),
   btnSnapshots: $<HTMLButtonElement>('btn-snapshots'),
   controlLayer: $<HTMLDivElement>('control-layer'),
   controlLabel: $<HTMLSpanElement>('control-label'),
@@ -1648,6 +1649,25 @@ function bindEvents(): void {
     cleanPhase = 'idle';
     els.btnCleanFiles.textContent = '🧹 清收檔夾';
   };
+  // silent update: each student runs the newest Setup.exe from its save dir
+  els.btnSilentUpdate.addEventListener('click', () => {
+    if (!session?.isConnected) {
+      log('warn', '尚未連線；請先按「連線」再靜默更新。');
+      return;
+    }
+    let sent = 0;
+    for (const student of session.students()) {
+      session.sendCtl(student.info.id, { t: 'silent-update' });
+      sent++;
+    }
+    if (sent > 0) {
+      log('info', `⬇ 靜默更新已送 ${sent} 台（學生機將安裝收檔夾裡的最新 Setup.exe 並自動重啟）。`);
+      log('info', '提醒：請先用「送檔」把學生機 Setup.exe 傳到學生機。');
+    } else {
+      log('warn', '沒有學生機可操作。');
+    }
+  });
+
   els.btnCleanFiles.addEventListener('click', () => {
     if (!session?.isConnected) {
       log('warn', '尚未連線；請先按「連線」。');
@@ -1801,9 +1821,7 @@ function startDemo(peerId: string, name: string): void {
   demoPeer = peerId;
   els.btnMonitorWall.textContent = '📢 轉發中：' + name;
   document.querySelectorAll('.wall-cell.demoing').forEach(el => el.classList.remove('demoing'));
-  document
-    .querySelectorAll('.wall-cell[data-peer-id="' + peerId + '"]')
-    .forEach(el => el.classList.add('demoing'));
+  document.querySelectorAll('.wall-cell[data-peer-id="' + peerId + '"]').forEach(el => el.classList.add('demoing'));
   log('info', '[demo] 開始轉播 ' + name + '（peerId=' + peerId + '）');
   log('info', `📢 學生示範開始：${name} 的畫面正在播給全班。再點一次 📢 或按 ESC 結束。`);
 }

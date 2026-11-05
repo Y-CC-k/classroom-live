@@ -114,9 +114,7 @@ export function registerUpdateIpc(): void {
     // overwrite verification: read back the actually-applied version
     let appliedBuild = 'unknown';
     try {
-      const bi = JSON.parse(
-        fs.readFileSync(path.join(appDir, 'dist', 'build-info.json'), 'utf8')
-      );
+      const bi = JSON.parse(fs.readFileSync(path.join(appDir, 'dist', 'build-info.json'), 'utf8'));
       appliedBuild = bi.builtAt ?? 'unknown';
     } catch {
       /* not found -> unknown */

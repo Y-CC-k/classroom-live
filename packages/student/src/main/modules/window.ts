@@ -1,5 +1,15 @@
 import path from 'node:path';
-import { BrowserWindow, nativeImage, Tray, Menu, app, dialog, ipcMain, powerSaveBlocker, globalShortcut } from 'electron';
+import {
+  BrowserWindow,
+  nativeImage,
+  Tray,
+  Menu,
+  app,
+  dialog,
+  ipcMain,
+  powerSaveBlocker,
+  globalShortcut,
+} from 'electron';
 
 import { EVENTS, IPC, type HostCommand } from '../../shared/ipc.js';
 import { TRAY_ICON_PNG_BASE64 } from '../../shared/tray-icon.js';

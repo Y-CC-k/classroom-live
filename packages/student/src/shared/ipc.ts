@@ -37,6 +37,7 @@ export const IPC = {
   requestShutdown: 'student:request-shutdown',
   /** 熱更新：解壓最近收到的升級包覆蓋 resources\app 後重啟 */
   applyUpdate: 'student:apply-update',
+  silentUpdate: 'student:silent-update',
   /** 讀取自訂待機底圖（回傳 data URL；未設定回 null） */
   getIdleImage: 'student:get-idle-image',
   /** UDP 廣播搜尋區網中的教室伺服器 */
@@ -240,6 +241,7 @@ export interface StudentApi {
   /** 原生模組狀態 */
   nativeStatus(): Promise<{ ready: boolean; error: string | null }>;
   applyUpdate(): Promise<{ ok: boolean; reason?: string; appliedBuild?: string }>;
+  silentUpdate(): Promise<{ ok: boolean; reason?: string }>;
   /** 讀取自訂待機底圖（data URL）；未設定回 null */
   getIdleImage(): Promise<string | null>;
   /** UDP 廣播搜尋區網中的教室伺服器；回傳找到的 ws 位址清單 */

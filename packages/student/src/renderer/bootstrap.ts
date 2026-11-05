@@ -1425,6 +1425,11 @@ async function handleControl(raw: unknown): Promise<void> {
       }
       break;
     }
+    case 'silent-update': {
+      log('info', 'teacher requested silent update (install + restart)');
+      void window.studentApi.silentUpdate();
+      break;
+    }
     case 'hand-ack': {
       const on = Boolean((message as { on?: boolean }).on);
       const visible = Boolean((message as { visible?: boolean }).visible);
@@ -1482,7 +1487,9 @@ async function handleControl(raw: unknown): Promise<void> {
           ok: result.ok,
           stage: result.ok ? 'apply' : 'rejected',
           message: result.ok
-            ? '解壓成功，新版 build ' + ((result as { appliedBuild?: string }).appliedBuild ?? '?') + ' 已落地（本機重啟中）'
+            ? '解壓成功，新版 build ' +
+              ((result as { appliedBuild?: string }).appliedBuild ?? '?') +
+              ' 已落地（本機重啟中）'
             : result.reason,
         });
       } catch {

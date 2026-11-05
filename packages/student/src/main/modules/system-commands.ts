@@ -1,11 +1,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFile, spawn } from 'node:child_process';
-import { ipcMain } from 'electron';
+import { app, ipcMain } from 'electron';
 
 import { shell } from 'electron';
 
 import { IPC } from '../../shared/ipc.js';
+import { getConfig } from '../store.js';
 import { detectNetworkInfo } from '../local-ip.js';
 
 export function registerSystemCommandsIpc(): void {
@@ -121,5 +122,31 @@ export function registerSystemCommandsIpc(): void {
       return { error: '找不到可擷取的螢幕' };
     }
     return { id: sources[0]!.id };
+  });
+
+  // silent update: run latest Setup.exe from save dir (/S), wait, start new app.
+  // detached cmd survives the app being killed by the installer.
+  ipcMain.handle(IPC.silentUpdate, async () => {
+    try {
+      const dir = getConfig().fileSaveDir;
+      if (!dir || !fs.existsSync(dir)) return { ok: false, reason: 'save dir missing' };
+      const setups = fs
+        .readdirSync(dir)
+        .filter(f => f.includes('Setup') && f.endsWith('.exe'))
+        .map(f => ({ name: f, at: fs.statSync(path.join(dir, f)).mtimeMs }))
+        .sort((x, y) => (y ? y.at : 0) - (x ? x.at : 0));
+      if (setups.length === 0) return { ok: false, reason: 'no Setup.exe in save dir' };
+      const latest = setups[0];
+      if (!latest) return { ok: false, reason: 'no Setup.exe in save dir' };
+      const setupPath = path.join(dir, latest.name);
+      const exePath = process.execPath;
+      const cmd = `"${setupPath}" /S & timeout /t 12 /nobreak >nul & start "" "${exePath}"`;
+      spawn('cmd.exe', ['/c', cmd], { detached: true, windowsHide: true, stdio: 'ignore' }).unref();
+      console.log('[silent-update] started:', latest.name);
+      setTimeout(() => app.exit(0), 4000);
+      return { ok: true, message: 'silent install started' };
+    } catch (error) {
+      return { ok: false, reason: error instanceof Error ? error.message : String(error) };
+    }
   });
 }
