@@ -54,7 +54,25 @@ try {
   log('警告：讀取 student package.json 失敗，使用預設版本 0.1.0');
 }
 
-const zipName = customName || '學生機升級包.zip';
+
+// 檔名戳 = 包內編譯戳（dist/build-info.json 的 builtAt）：檔名即包內代碼版本
+function distStamp() {
+  try {
+    const bi = JSON.parse(fs.readFileSync(path.join(studentDist, 'build-info.json'), 'utf8'));
+    if (bi.builtAt) {
+      const d = new Date(bi.builtAt);
+      const p = (v) => String(v).padStart(2, '0');
+      return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}`;
+    }
+  } catch {
+    /* 讀不到就用當前時間 */
+  }
+  const d = new Date();
+  const p = (v) => String(v).padStart(2, '0');
+  return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}`;
+}
+
+const zipName = customName || `學生機升級包 ${version} build-${distStamp()}.zip`;
 const zipPath = path.join(root, zipName);
 
 // 確認 dist 存在
