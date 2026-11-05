@@ -158,8 +158,8 @@ export class TeacherSession {
     return this.controlManager.closeBrowsersAll();
   }
 
-  watchStudent(peerId: string, on: boolean, intervalMs?: number): boolean {
-    return this.monitorManager.watchStudent(peerId, on, intervalMs);
+  watchStudent(peerId: string, on: boolean, intervalMs?: number, maxWidth?: number): boolean {
+    return this.monitorManager.watchStudent(peerId, on, intervalMs, maxWidth);
   }
 
   shutdownStudent(peerId: string, delaySec: number): boolean {
@@ -352,8 +352,8 @@ export class TeacherSession {
   // ─────────────────────────── 多螢幕監控牆 ───────────────────────────
 
   /** 同時開始監看多台學生機（監控牆用）。回傳實際開始監看的數量。 */
-  watchStudents(peerIds: string[], intervalMs = 3000): number {
-    return this.monitorManager.watchStudents(peerIds, intervalMs);
+  watchStudents(peerIds: string[], intervalMs = 3000, maxWidth?: number): number {
+    return this.monitorManager.watchStudents(peerIds, intervalMs, maxWidth);
   }
 
   /** 停止單台學生機的監看。 */

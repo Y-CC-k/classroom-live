@@ -859,7 +859,8 @@ async function handleImgChannel(data: unknown): Promise<void> {
 
 /** 監看幀的寬度上限（教師端 480px 顯示窗足夠清楚，也省頻寬） */
 /* 960 寬：監控牆格子僅 200-300px、單台監看窗 760px，960 已足夠且大幅省頻寬
-   （1600 時 29 台 x 3s ≈ 14 Mbps；960 時每張約剩 36%，僅 ~3 Mbps） */
+   （1600 時 29 台 x 3s ≈ 14 Mbps；960 時每張約剩 36%，僅 ~3 Mbps）。
+   監控牆台數多時教師端會再要求更小的 maxWidth（480），這裡只是預設上限。 */
 const WATCH_MAX_WIDTH = 960;
 /** 監看幀 JPEG 品質：文字要能對答案，取中等偏上 */
 const WATCH_QUALITY = 0.62;
@@ -868,7 +869,10 @@ interface WatchState {
   stream: MediaStream;
   video: HTMLVideoElement;
   canvas: HTMLCanvasElement;
-  timer: ReturnType<typeof setInterval>;
+  /** 相位延遲（錯開全班取樣點）或循環送圖的計時器；剛建立、尚未排程前為 undefined */
+  timer: ReturnType<typeof setTimeout> | undefined;
+  /** 這次監看的幀寬度上限（教師端可指定，預設 WATCH_MAX_WIDTH） */
+  maxWidth: number;
   /** 已送出的幀序號（從 1 開始） */
   seq: number;
   /** 上一次抽照還沒跑完就先跳過（避免疊張堆積） */
@@ -878,13 +882,15 @@ interface WatchState {
 /** 教師監看中的送圖狀態；null = 沒有在監看 */
 let watchState: WatchState | null = null;
 
-async function startWatch(intervalMs: number): Promise<void> {
+async function startWatch(intervalMs: number, maxWidth?: number): Promise<void> {
   stopWatch('restart');
   const source = await window.studentApi.getScreenSource();
   if ('error' in source) {
     log('warn', `監看無法啟動：${source.error}`);
     return;
   }
+  // 寬度上限：以教師端要求為準（clamp 到 320～960），不指定就沿用預設
+  const widthCap = Math.max(320, Math.min(WATCH_MAX_WIDTH, Math.round(maxWidth ?? WATCH_MAX_WIDTH)));
   try {
     // 與教師端廣播同款約束：desktopCapturer 的 screen: 來源配
     // chromeMediaSource: 'desktop' 的舊式約束（不跳系統選擇視窗）。
@@ -895,7 +901,7 @@ async function startWatch(intervalMs: number): Promise<void> {
           chromeMediaSource: 'desktop',
           chromeMediaSourceId: source.id,
           maxFrameRate: 2,
-          maxWidth: WATCH_MAX_WIDTH,
+          maxWidth: widthCap,
           maxHeight: 1000,
         },
       },
@@ -913,15 +919,31 @@ async function startWatch(intervalMs: number): Promise<void> {
     video.srcObject = stream;
     await video.play().catch(() => undefined);
 
-    watchState = {
+    const state: WatchState = {
       stream,
       video,
       canvas: document.createElement('canvas'),
-      timer: setInterval(() => void sendWatchFrame(), intervalMs),
+      timer: undefined,
+      maxWidth: widthCap,
       seq: 0,
       busy: false,
     };
-    log('info', `老師正在監看本機螢幕（每 ${Math.round(intervalMs / 1000)} 秒更新一張）；教師端關閉監看就會停止。`);
+    watchState = state;
+
+    // 錯開取樣相位：全班同時被開監看時（監控牆一次開 30 台），若每台都在
+    // 同一拍送 JPEG，教師機每個週期會收到一次 N 張爆量（網路尖峰＋主執行緒
+    // 一次組 30 幀）——這是監控牆人多時卡頓的主因。各自隨機延遲 0～interval
+    // 才送第一張，之後才進入固定間隔循環，把尖峰攤平成穩定小水流。
+    const phase = Math.floor(Math.random() * Math.max(1, intervalMs));
+    state.timer = setTimeout(() => {
+      if (watchState !== state) return; // 等待相位期間被停止／重啟
+      void sendWatchFrame();
+      state.timer = setInterval(() => void sendWatchFrame(), intervalMs);
+    }, phase);
+    log(
+      'info',
+      `老師正在監看本機螢幕（每 ${Math.round(intervalMs / 1000)} 秒更新一張，寬度上限 ${widthCap}px）；教師端關閉監看就會停止。`
+    );
   } catch (error) {
     log('warn', `監看無法啟動：${error instanceof Error ? error.message : String(error)}`);
   }
@@ -940,7 +962,7 @@ async function sendWatchFrame(): Promise<void> {
     const video = state.video;
     if (video.readyState < 2 || video.videoWidth === 0) return;
 
-    const scale = Math.min(1, WATCH_MAX_WIDTH / video.videoWidth);
+    const scale = Math.min(1, state.maxWidth / video.videoWidth);
     state.canvas.width = Math.round(video.videoWidth * scale);
     state.canvas.height = Math.round(video.videoHeight * scale);
     const ctx = state.canvas.getContext('2d');
@@ -978,6 +1000,9 @@ function stopWatch(reason: 'teacher-stopped' | 'line-lost' | 'restart'): void {
   const state = watchState;
   if (!state) return;
   watchState = null;
+  // timer 可能是相位 setTimeout 或循環 setInterval：兩者在瀏覽器共用同一個
+  // 計時器 ID 空間，clearTimeout/clearInterval 皆可清掉（這裡兩個都呼叫保險）。
+  clearTimeout(state.timer);
   clearInterval(state.timer);
   for (const track of state.stream.getVideoTracks()) track.stop();
   state.video.srcObject = null;
@@ -1349,7 +1374,7 @@ async function handleControl(raw: unknown): Promise<void> {
       // 跟廣播／鎖定完全獨立；教師關掉監看或控制通道斷線就停止。
       const on = Boolean(message.on);
       if (on) {
-        await startWatch(Number(message.intervalMs) || 3000);
+        await startWatch(Number(message.intervalMs) || 3000, Number(message.maxWidth) || undefined);
       } else {
         log('info', '老師停止監看本機');
         stopWatch('teacher-stopped');
@@ -1427,7 +1452,13 @@ async function handleControl(raw: unknown): Promise<void> {
     }
     case 'silent-update': {
       log('info', 'teacher requested silent update (install + restart)');
-      void window.studentApi.silentUpdate();
+      void window.studentApi
+        .silentUpdate()
+        .then(r => {
+          if (r.ok) log('info', 'silent install started (reboot in 12s)');
+          else log('warn', 'silent update failed: ' + (r.reason ?? ''));
+        })
+        .catch(e => log('warn', 'silent update error: ' + (e instanceof Error ? e.message : String(e))));
       break;
     }
     case 'hand-ack': {

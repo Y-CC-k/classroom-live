@@ -39,9 +39,11 @@ export type CtlMessage =
    * 低頻螢幕監看（單台 3 秒一張那種）：教師按「👁 監看」時送出；
    * 要求學生開始／停止推流它的螢幕。
    * `intervalMs` 是學生端送圖的間隔（預設 3000）；
+   * `maxWidth` 是學生端送出幀的寬度上限（省略＝960）。監控牆台數多時
+   * 會要求較小幀（480），格子只有 200-300px，收 960px 只是浪費頻寬與解碼。
    * 幀走 **evt 通道**（JSON hdr → 裸分片 → end），與檔案通道同一套信封。
    */
-  | { t: 'watch'; on: boolean; intervalMs?: number }
+  | { t: 'watch'; on: boolean; intervalMs?: number; maxWidth?: number }
   /**
    * 更新學生機「待機（開機初始）畫面」的文字。
    * 學生端立即套用（未廣播時）並存進 config，下次開機也顯示。

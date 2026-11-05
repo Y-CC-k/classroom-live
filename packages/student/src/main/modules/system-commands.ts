@@ -5,6 +5,7 @@ import { app, ipcMain } from 'electron';
 
 import { shell } from 'electron';
 
+import { getResolvedSaveDir } from './file-recv.js';
 import { IPC } from '../../shared/ipc.js';
 import { getConfig } from '../store.js';
 import { detectNetworkInfo } from '../local-ip.js';
@@ -128,8 +129,8 @@ export function registerSystemCommandsIpc(): void {
   // detached cmd survives the app being killed by the installer.
   ipcMain.handle(IPC.silentUpdate, async () => {
     try {
-      const dir = getConfig().fileSaveDir;
-      if (!dir || !fs.existsSync(dir)) return { ok: false, reason: 'save dir missing' };
+      const dir = getResolvedSaveDir();
+      if (!dir || !fs.existsSync(dir)) return { ok: false, reason: 'save dir missing: ' + dir };
       const setups = fs
         .readdirSync(dir)
         .filter(f => f.includes('Setup') && f.endsWith('.exe'))

@@ -673,7 +673,7 @@ function renderStudents(): void {
     pickLine.className = 'pick-line';
     const name = document.createElement('div');
     name.className = 'name';
-    name.textContent = student.info.name;
+    name.textContent = `🖥 ${student.info.name}`;
     name.title = `${student.info.name} (${student.info.id})`;
     pickLine.append(name);
 

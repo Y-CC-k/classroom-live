@@ -58,6 +58,10 @@ function canWriteDir(dir: string): boolean {
   }
 }
 
+/** resolved save dir (same as file-recv; for silent update etc) */
+export function getResolvedSaveDir(): string {
+  return pickSaveDir() ?? getConfig().fileSaveDir ?? defaultFileSaveDir() ?? "";
+}
 function pickSaveDir(): string | null {
   const configured = getConfig().fileSaveDir;
   const configuredList = configured ? dirCandidates(configured) : [];

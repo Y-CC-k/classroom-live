@@ -1,7 +1,8 @@
 /**
  * 教師端多螢幕監控牆 UI 組件。
  *
- * 以 CSS Grid 佈局同時顯示多台學生機的監看畫面（每 3 秒一張 JPEG）。
+ * 以 CSS Grid 佈局同時顯示多台學生機的監看畫面（低頻 JPEG，台數越多
+ * 節奏越慢、幀越小，見 WALL_PARAMS_FOR_COUNT）。
  * 支援 4／9／16 格分割，格子數量依監看台數自動調整。
  *
  * 整合方式：
@@ -31,6 +32,24 @@ const COLUMNS_FOR_COUNT: Record<number, string> = {
   14: 'repeat(6, 1fr)',
   15: 'repeat(5, 1fr)',
   16: 'repeat(4, 1fr)',
+};
+
+/**
+ * 依監看台數決定送圖節奏與幀寬上限。
+ *
+ * 台數多時延遲的兩個來源：頻寬總量與主執行緒解碼量。牆上格子實際只有
+ * 200–500px 寬，收 960px 幀是純浪費；間隔也隨台數放寬，把「每秒湧入的
+ * 張數×位元組」壓在教室網路舒服的範圍（配合學生端錯開相位，不會爆量）。
+ *
+ * 頻寬估算（480px、q0.62 一張約 10–20KB）：
+ *   16 台 × 4 秒 ≈ 60–80 KB/s（約 0.6 Mbps）
+ *   30 台 × 5 秒 ≈ 60–120 KB/s（約 1 Mbps）——960px/3 秒時是 3+ Mbps
+ */
+const WALL_PARAMS_FOR_COUNT = (count: number): { intervalMs: number; maxWidth: number } => {
+  if (count <= 4) return { intervalMs: 3000, maxWidth: 960 }; // 格子大，維持原本的清楚度
+  if (count <= 9) return { intervalMs: 3000, maxWidth: 640 };
+  if (count <= 16) return { intervalMs: 4000, maxWidth: 480 };
+  return { intervalMs: 5000, maxWidth: 480 };
 };
 
 /** 監控牆容器樣式（注入到 document head） */
@@ -108,6 +127,7 @@ const WALL_STYLE = `
 /** 監控牆單一格子 */
 class WallCell {
   private readonly peerId: string;
+  private readonly studentName: string;
   private readonly element: HTMLElement;
   private readonly img: HTMLImageElement;
   private readonly nameEl: HTMLElement;
@@ -129,6 +149,7 @@ class WallCell {
 
   constructor(peerId: string, studentName: string) {
     this.peerId = peerId;
+    this.studentName = studentName;
 
     this.element = document.createElement('div');
     this.element.className = 'wall-cell inactive';
@@ -136,10 +157,13 @@ class WallCell {
 
     this.img = document.createElement('img');
     this.img.alt = studentName;
+    // 非同步解碼：幀到達時不阻塞主執行緒（台數多時一次解碼多張會卡 UI）
+    this.img.decoding = 'async';
 
     this.nameEl = document.createElement('div');
     this.nameEl.className = 'wall-cell-name';
-    this.nameEl.textContent = studentName;
+    // IP 前加電腦圖示；回呼（收藏／接管／示範）一律用 this.studentName，避免檔名混進圖示
+    this.nameEl.textContent = `🖥 ${studentName}`;
 
     this.metaEl = document.createElement('div');
     this.metaEl.className = 'wall-cell-meta';
@@ -160,7 +184,7 @@ class WallCell {
     this.controlBtn.title = '遠端接管（指導操作）';
     this.controlBtn.addEventListener('click', e => {
       e.stopPropagation();
-      this.onControl?.(this.peerId, this.nameEl.textContent ?? this.peerId);
+      this.onControl?.(this.peerId, this.studentName);
     });
     // 📢 示範按鈕：hover 顯示，點擊把這台的畫面轉發給全班
     this.demoBtn = document.createElement('button');
@@ -170,11 +194,11 @@ class WallCell {
     this.demoBtn.title = '學生示範：把這台的畫面播給全班看';
     this.demoBtn.addEventListener('click', e => {
       e.stopPropagation();
-      this.onDemo?.(this.peerId, this.nameEl.textContent ?? this.peerId);
+      this.onDemo?.(this.peerId, this.studentName);
     });
     this.snapBtn.addEventListener('click', e => {
       e.stopPropagation();
-      if (this.lastBlob) this.onSnapshot?.(this.peerId, this.nameEl.textContent ?? this.peerId, this.lastBlob);
+      if (this.lastBlob) this.onSnapshot?.(this.peerId, this.studentName, this.lastBlob);
     });
 
     this.element.append(this.img, this.nameEl, this.metaEl, this.snapBtn, this.controlBtn, this.demoBtn);
@@ -251,6 +275,10 @@ export class MonitorWall {
   private readonly onDemo: (peerId: string, name: string) => void;
   /** 監控牆顯示／隱藏時同步視窗全螢幕 */
   private readonly onVisibilityChange: (visible: boolean) => void;
+  /** 目前這面牆的送圖節奏（示範結束後重掛示範者時沿用） */
+  private currentIntervalMs = 3000;
+  /** 目前這面牆要求的幀寬上限（同上） */
+  private currentMaxWidth = 960;
 
   constructor(
     container: HTMLElement,
@@ -303,7 +331,7 @@ export class MonitorWall {
   show(peerIds?: string[]): void {
     const targets = peerIds ?? [];
     if (targets.length === 0) {
-      this.log('warn', '沒有可監看的學生機：請先勾選學生機，或等學生機連線。');
+      this.log('warn', '沒有可監看的學生機：請等學生機連線（控制通道連上即可）。');
       return;
     }
     this.setStudents(targets);
@@ -361,10 +389,13 @@ export class MonitorWall {
       this.container.appendChild(cell.elementRef);
     }
 
-    // 5 秒一張：29 台同時監看時總下行約 1.5 Mbps（3 秒時為 3+ Mbps），
-    // 監控牆用途（確認學生在不在/做什麼）不需要更快。
+    // 台數越多節奏越慢、幀越小（見 WALL_PARAMS_FOR_COUNT 的頻寬估算）；
+    // 學生端會再錯開各自的取樣相位，N 台的幀不會同一拍湧入。
+    const params = WALL_PARAMS_FOR_COUNT(watchable.length);
+    this.currentIntervalMs = params.intervalMs;
+    this.currentMaxWidth = params.maxWidth;
     if (watchable.length > 0) {
-      this.session.watchStudents(watchable, 3000);
+      this.session.watchStudents(watchable, params.intervalMs, params.maxWidth);
     }
 
     this.renderGrid();
@@ -422,5 +453,15 @@ export class MonitorWall {
 
   get isVisible(): boolean {
     return this.visible;
+  }
+
+  /** 目前牆的送圖間隔（示範結束後要把示範者重掛回牆的節奏用） */
+  get watchIntervalMs(): number {
+    return this.currentIntervalMs;
+  }
+
+  /** 目前牆要求的幀寬上限（同上） */
+  get watchMaxWidth(): number {
+    return this.currentMaxWidth;
   }
 }

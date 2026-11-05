@@ -131,16 +131,6 @@ const els = {
   btnPushUrl: $<HTMLButtonElement>('btn-push-url'),
   btnBroadcastAll: $<HTMLButtonElement>('btn-broadcast-all'),
   broadcastTargetLabel: $<HTMLSpanElement>('broadcast-target-label'),
-  perStudentBar: $<HTMLDivElement>('per-student-bar'),
-  checkedCount: $<HTMLSpanElement>('checked-count'),
-  btnLockChecked: $<HTMLButtonElement>('btn-lock-checked'),
-  btnFileChecked: $<HTMLButtonElement>('btn-file-checked'),
-  btnUrlChecked: $<HTMLButtonElement>('btn-url-checked'),
-  btnExecChecked: $<HTMLButtonElement>('btn-exec-checked'),
-  btnShutdownChecked: $<HTMLButtonElement>('btn-shutdown-checked'),
-  btnRebootChecked: $<HTMLButtonElement>('btn-reboot-checked'),
-  btnCastChecked: $<HTMLButtonElement>('btn-cast-checked'),
-  btnUncheckAll: $<HTMLButtonElement>('btn-uncheck-all'),
   fileInput: $<HTMLInputElement>('file-input'),
   fileLabel: $<HTMLSpanElement>('file-label'),
   btnPickFile: $<HTMLButtonElement>('btn-pick-file'),
@@ -203,16 +193,11 @@ function log(level: 'info' | 'warn' | 'error' | 'hand', message: string): void {
   while (els.log.childElementCount > 300) els.log.lastElementChild?.remove();
 }
 
-/** 依鎖定狀態更新鎖定按鈕的文字與樣式（全班＋勾選台） */
+/** 依鎖定狀態更新鎖定按鈕的文字與樣式（全班） */
 function updateLockButtons(): void {
   const lockOn = session?.lockActive ?? false;
   els.btnLock.textContent = lockOn ? '🔓 解鎖' : '🔒 鎖定';
   els.btnLock.className = lockOn ? 'btn primary grow' : 'btn danger grow';
-  if (checkedPeers.size > 0) {
-    const anyLocked = [...checkedPeers].some(id => session?.isPeerLocked(id) ?? false);
-    els.btnLockChecked.textContent = anyLocked ? '🔓 解除鎖定' : '🔒 鎖定';
-    els.btnLockChecked.className = anyLocked ? 'btn tiny primary' : 'btn tiny warn';
-  }
 }
 
 function setStatus(text: string, kind: 'idle' | 'ok' | 'warn' | 'err' = 'idle'): void {
@@ -714,13 +699,6 @@ function renderStudents(): void {
   }
   els.studentGrid.replaceChildren();
 
-  // 勾選名單跟著現在一波清單修整：已下線的台自動移出勾選
-  const peerIds = new Set(students.map(student => student.info.id));
-  for (const id of [...checkedPeers]) {
-    if (!peerIds.has(id)) checkedPeers.delete(id);
-  }
-  updateStudentBar();
-
   // 正在監看的那台離線了：自動收掉監看（避免窗一直停在舊畫面）
   refreshSceneButtons();
 
@@ -728,32 +706,14 @@ function renderStudents(): void {
     const card = document.createElement('div');
     card.className = 'card';
 
-    // 勾選框：勾起來的台才能用「單機功能列」（中欄最下方）
     const peerId = student.info.id;
     const pickLine = document.createElement('div');
     pickLine.className = 'pick-line';
-    const pick = document.createElement('input');
-    pick.type = 'checkbox';
-    pick.className = 'pick';
-    pick.title = '勾選後可用最下方的單機功能列（點卡片也可以勾／取消）';
-    pick.checked = checkedPeers.has(peerId);
-    pick.addEventListener('change', () => {
-      if (pick.checked) checkedPeers.add(peerId);
-      else checkedPeers.delete(peerId);
-      card.classList.toggle('checked', pick.checked);
-      updateStudentBar();
-    });
     const name = document.createElement('div');
     name.className = 'name';
-    name.textContent = student.info.name;
+    name.textContent = `🖥 ${student.info.name}`;
     name.title = `${student.info.name} (${student.info.id})`;
-    pickLine.append(pick, name);
-    // 點卡片任意處＝切換勾選（點勾選框本身除外）
-    card.addEventListener('click', event => {
-      if (event.target === pick) return;
-      pick.checked = !pick.checked;
-      pick.dispatchEvent(new Event('change'));
-    });
+    pickLine.append(name);
 
     const meta = document.createElement('div');
     meta.className = 'meta';
@@ -773,7 +733,6 @@ function renderStudents(): void {
     if (student.lastError) meta.append(tag(`錯誤：${student.lastError}`, 'tag err'));
 
     card.append(pickLine, meta);
-    if (pick.checked) card.classList.add('checked');
     els.studentGrid.append(card);
   }
 }
@@ -783,16 +742,6 @@ function tag(text: string, className: string): HTMLSpanElement {
   span.className = className;
   span.textContent = text;
   return span;
-}
-
-/** 勾選要進行「單機功能」的學生機（卡片勾選框；勾選名單獨立於廣播名單） */
-const checkedPeers = new Set<string>();
-
-/** 單機功能列顯示：沒勾任何一台時整列收起 */
-function updateStudentBar(): void {
-  const count = checkedPeers.size;
-  els.perStudentBar.hidden = true;
-  els.checkedCount.textContent = `已選 ${count} 台`;
 }
 
 // ───────────────────────────── 連線 ─────────────────────────────
@@ -919,16 +868,13 @@ async function connect(): Promise<void> {
   els.btnStart.disabled = false;
 
   // 初始化監控牆（session 已建立）
-  // 監控牆：勾選的台優先；沒勾選則監看全部已連線學生機
+  // 監控牆：監看全部已連線學生機
   const activeSession = session;
   monitorWall = new MonitorWall(
     els.monitorWall,
     activeSession,
     els.btnMonitorWall,
-    () => {
-      if (checkedPeers.size > 0) return [...checkedPeers];
-      return activeSession.students().map(s => s.info.id);
-    },
+    () => activeSession.students().map(s => s.info.id),
     (peerId, name, blob) => void handleSnapshot(peerId, name, blob),
     (peerId, name) => takeControl(peerId, name),
     visible => void window.teacherApi.setFullscreen(visible),
@@ -1102,122 +1048,6 @@ function bindEvents(): void {
     log('info', '已恢復全班廣播。');
   });
 
-  // ─── 單機功能列：只對卡片勾選的台生效 ───
-  let barShutdownArmed = false;
-  // ── 鎖定勾選台（切換式）：勾選台中任一已鎖 → 解除全部；否則鎖定全部 ──
-  els.btnLockChecked.addEventListener('click', () => {
-    if (checkedPeers.size === 0) {
-      log('warn', '先勾選學生機（點卡片即可勾選）。');
-      return;
-    }
-    if (!session?.isConnected) {
-      log('warn', '尚未連線；請先按「連線」。');
-      return;
-    }
-    const activeSession = session;
-    const anyLocked = [...checkedPeers].some(id => activeSession.isPeerLocked(id));
-    const on = !anyLocked;
-    let sent = 0;
-    for (const peerId of checkedPeers) if (session.lockStudent(peerId, on)) sent++;
-    log(sent > 0 ? 'info' : 'warn', on ? `已鎖定勾選的 ${sent} 台鍵盤滑鼠` : `已解除勾選的 ${sent} 台鎖定`);
-    updateLockButtons();
-    renderStudents();
-  });
-  els.btnFileChecked.addEventListener('click', () => {
-    if (checkedPeers.size === 0) return;
-    const files = Array.from(els.fileInput.files ?? []);
-    if (files.length === 0) {
-      log('warn', '請先在工作設定用「選擇檔案…」挑好要送的檔案。');
-      return;
-    }
-    let sent = 0;
-    for (const peerId of checkedPeers) {
-      if (session?.sendFilesToStudent(peerId, files)) sent++;
-    }
-    log(
-      sent > 0 ? 'info' : 'warn',
-      `開始送 ${files.length} 個檔案給勾選的 ${sent}／${checkedPeers.size} 台（未送成的台是檔案通道未連上）。`
-    );
-  });
-  els.btnUrlChecked.addEventListener('click', () => {
-    if (checkedPeers.size === 0) return;
-    const url = els.pushUrl.value.trim();
-    if (!url) {
-      log('warn', '請先在工作設定「網站推播」欄填好網址。');
-      els.pushUrl.focus();
-      return;
-    }
-    let sent = 0;
-    for (const peerId of checkedPeers) {
-      if (session?.pushUrlStudent(peerId, url)) sent++;
-    }
-    log(sent > 0 ? 'info' : 'warn', `已要求勾選的 ${sent}／${checkedPeers.size} 台開啟網址。`);
-  });
-  els.btnExecChecked.addEventListener('click', () => {
-    if (checkedPeers.size === 0) return;
-    const target = els.execPath.value.trim();
-    if (!target) {
-      log('warn', '請先填入要執行的檔案路徑（該檔案必須已在學生機上，例如 D:\\t.bat）。');
-      els.execPath.focus();
-      return;
-    }
-    const args = els.execArgs.value
-      .trim()
-      .split(/\s+/)
-      .filter(item => item.length > 0);
-    let sent = 0;
-    for (const peerId of checkedPeers) {
-      if (session?.execStudent(peerId, target, args)) sent++;
-    }
-    log(
-      sent > 0 ? 'info' : 'warn',
-      `已送出執行 ${target} 給勾選的 ${sent}／${checkedPeers.size} 台；是否成功看各台 ☰ 記錄。`
-    );
-  });
-  els.btnShutdownChecked.addEventListener('click', () => {
-    if (checkedPeers.size === 0) return;
-    // 兩按確認：第一次按進入確認（5 秒），第二次按＝立即關機（不倒數）
-    if (!barShutdownArmed) {
-      barShutdownArmed = true;
-      els.btnShutdownChecked.textContent = '⚠ 確定關機';
-      els.btnShutdownChecked.classList.add('growing');
-      setTimeout(() => {
-        barShutdownArmed = false;
-        els.btnShutdownChecked.textContent = '⏻ 關機';
-        els.btnShutdownChecked.classList.remove('growing');
-      }, 5000);
-      return;
-    }
-    barShutdownArmed = false;
-    els.btnShutdownChecked.textContent = '⏻ 關機';
-    els.btnShutdownChecked.classList.remove('growing');
-    let sent = 0;
-    for (const peerId of checkedPeers) {
-      if (session?.shutdownStudent(peerId, 0)) sent++;
-    }
-    log(sent > 0 ? 'info' : 'warn', `勾選的 ${sent}／${checkedPeers.size} 台已立即關機。`);
-  });
-  els.btnCastChecked.addEventListener('click', () => {
-    if (checkedPeers.size === 0) return;
-    const ids = [...checkedPeers];
-    const ok = session?.setBroadcastTargetIds(ids) ?? false;
-    if (!ok) {
-      log(
-        'warn',
-        session?.isConnected
-          ? '直播失敗：目前模式不是「圖片逐張」。請先在工作設定把廣播模式切到圖片逐張（斷線→連線）再試。'
-          : '直播失敗：尚未連線（先按「連線」再指播）。'
-      );
-      return;
-    }
-    renderStudents();
-    log('info', `直播：畫面只送勾選的 ${ids.length} 台；標題列可按「回到全班」解除。`);
-  });
-  els.btnUncheckAll.addEventListener('click', () => {
-    checkedPeers.clear();
-    renderStudents();
-    log('info', '已取消全部勾選。');
-  });
   // ── 鎖定全班（切換式）：鎖定與解除同一顆按鈕 ──
   els.btnLock.addEventListener('click', () => {
     if (!session?.isConnected) {
@@ -1254,36 +1084,6 @@ function bindEvents(): void {
           : `已解除 ${sent} 台靜音`
         : '沒有學生機可控制（控制通道尚未連上任何一台）。'
     );
-  });
-
-  // 重開機（勾選的學生機）：與勾選列關機同一套兩按確認
-  let barRebootTimer: number | null = null;
-  let barRebootArmed = false;
-  const resetBarReboot = (): void => {
-    if (barRebootTimer !== null) window.clearTimeout(barRebootTimer);
-    barRebootArmed = false;
-    barRebootTimer = null;
-    els.btnRebootChecked.textContent = '⏻ 重開機';
-  };
-  els.btnRebootChecked.addEventListener('click', () => {
-    if (checkedPeers.size === 0) return;
-    if (!barRebootArmed) {
-      barRebootArmed = true;
-      els.btnRebootChecked.textContent = '⚠ 確定重開';
-      els.btnRebootChecked.classList.add('growing');
-      barRebootTimer = window.setTimeout(resetBarReboot, 5000);
-      return;
-    }
-    resetBarReboot();
-    let sent = 0;
-    for (const peerId of checkedPeers) {
-      if (session?.rebootStudent(peerId, 10)) sent++;
-    }
-    if (sent > 0) {
-      log('warn', `勾選的 ${sent} 台已排定 10 秒後重開機（學生機螢幕會顯示 Windows 倒數提示）`);
-    } else {
-      log('warn', '沒有在線的勾選學生機可重開（離線的請先連線）');
-    }
   });
 
   // ─── 課堂場景鍵：教學活動／學習操作 ───
@@ -1832,8 +1632,9 @@ function stopDemo(): void {
   const name = session?.students().find(s => s.info.id === demoPeer)?.info.name ?? demoPeer;
   session?.watchStudent(demoPeer, false);
   session?.demoBroadcast(false, demoPeer);
-  // 監控牆若開著：示範者剛被 watch off，重新以 3 秒監看讓牆面持續更新
-  if (monitorWall?.isVisible) session?.watchStudent(demoPeer, true, 3000);
+  // 監控牆若開著：示範者剛被 watch off，以牆目前的節奏重掛監看（牆面持續更新）
+  if (monitorWall?.isVisible)
+    session?.watchStudent(demoPeer, true, monitorWall.watchIntervalMs, monitorWall.watchMaxWidth);
   demoPeer = null;
   document.querySelectorAll('.wall-cell.demoing').forEach(el => el.classList.remove('demoing'));
   els.btnMonitorWall.textContent = '🖥 監控牆';
