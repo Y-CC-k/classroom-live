@@ -884,16 +884,95 @@ select:disabled {
   transform: scale(1.08);
 }
 
+/* ───────────── 多螢幕監控牆（容器＋格子；樣式曾整段缺失） ───────────── */
+.monitor-wall {
+  position: fixed;
+  inset: 0;
+  z-index: 800;
+  background: #0d1117;
+  display: grid;
+  gap: 10px;
+  padding: 10px;
+  overflow: auto;
+  align-content: start;
+}
+
+.monitor-wall[hidden] {
+  display: none;
+}
+
+.wall-cell {
+  position: relative; /* 📸/🎮/📢 按鈕的定位基準：讓每格按鈕各歸各格 */
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #0a0e14;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 150px;
+  cursor: pointer;
+}
+
+.wall-cell img {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  object-fit: contain;
+  background: #000;
+}
+
+.wall-cell-name {
+  position: absolute;
+  left: 6px;
+  top: 6px;
+  z-index: 2;
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.55);
+  padding: 1px 8px;
+  border-radius: 6px;
+  max-width: calc(100% - 130px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wall-cell-meta {
+  position: absolute;
+  left: 6px;
+  bottom: 4px;
+  z-index: 2;
+  font-size: 11px;
+  color: #cdd6e4;
+  background: rgba(0, 0, 0, 0.55);
+  padding: 1px 8px;
+  border-radius: 6px;
+}
+
+.wall-cell.inactive img {
+  opacity: 0.3;
+}
+
+.wall-cell.active {
+  border-color: var(--ok);
+}
+
 /* ── 修正：按鈕加大後的重疊與擠壓 ── */
 .wall-cell-control {
   right: 56px;
 }
 
 /* 📢 示範按鈕：樣式同接管鈕，位置在接管鈕左側 */
+.wall-cell.demoing .wall-cell-demo {
+  opacity: 1;
+  background: rgba(224, 49, 49, 0.95);
+}
+
 .wall-cell-demo {
   position: absolute;
   top: 4px;
-  right: 108px;
+  right: 84px;
   z-index: 3;
   opacity: 0;
   transition: opacity 0.15s ease;
