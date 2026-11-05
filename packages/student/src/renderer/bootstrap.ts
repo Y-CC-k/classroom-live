@@ -517,6 +517,17 @@ async function handleSignal(from: string, payload: SignalPayload): Promise<void>
 }
 
 /** 設定待機畫面（沒有廣播時顯示的文字） */
+/** base64 → bytes（示範幀 ctl 下行用） */
+function b64ToBytes(b64: string): Uint8Array {
+  const binary = atob(b64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
+
+/** 示範幀 ctl 下行的組幀桶 */
+let demoB64: { seq: number; total: number; width: number; height: number; parts: Map<number, string> } | null = null;
+
 function setIdle(title: string, text: string): void {
   els.idleTitle.textContent = title;
   els.idleText.textContent = text;
@@ -657,7 +668,7 @@ async function acceptBroadcast(description: RTCSessionDescriptionInit): Promise<
                 merged.set(chunk, off);
                 off += chunk.byteLength;
               }
-              const blob = new Blob([merged], { type: 'image/jpeg' });
+              const blob = new Blob([merged.buffer as ArrayBuffer], { type: 'image/jpeg' });
               const url = URL.createObjectURL(blob);
               if (lastImgUrl) URL.revokeObjectURL(lastImgUrl);
               lastImgUrl = url;
@@ -1363,6 +1374,45 @@ async function handleControl(raw: unknown): Promise<void> {
       break;
     }
 
+    case 'demo-frame-begin': {
+      demoB64 = {
+        seq: Number(message.seq) || 0,
+        total: Number(message.total) || 0,
+        width: Number(message.width) || 0,
+        height: Number(message.height) || 0,
+        parts: new Map(),
+      };
+      setBanner('📡 正在接收示範畫面…', 'ok');
+      break;
+    }
+    case 'demo-chunk': {
+      if (demoB64 && Number(message.seq) === demoB64.seq) {
+        demoB64.parts.set(Number(message.part) || 0, String(message.b64 ?? ''));
+      }
+      break;
+    }
+    case 'demo-frame-end': {
+      if (demoB64 && Number(message.seq) === demoB64.seq) {
+        try {
+          let b64 = '';
+          for (let p = 0; p < demoB64.total; p++) b64 += demoB64.parts.get(p) ?? '';
+          const bytes = b64ToBytes(b64);
+          const blob = new Blob([bytes.buffer as ArrayBuffer], { type: 'image/jpeg' });
+          const url = URL.createObjectURL(blob);
+          if (lastImgUrl) URL.revokeObjectURL(lastImgUrl);
+          lastImgUrl = url;
+          els.broadcastImg.src = url;
+          if (!imgFirstFrameLogged) {
+            imgFirstFrameLogged = true;
+            log('info', '[demo/ctl] 收到第一張示範畫面（' + Math.round(blob.size / 1024) + ' KB）');
+          }
+        } catch (error) {
+          log('warn', '示範畫面組幀失敗：' + (error instanceof Error ? error.message : String(error)));
+        }
+        demoB64 = null;
+      }
+      break;
+    }
     case 'lock': {
       // 鎖定／解除鍵盤滑鼠（課堂秩序）。
       // 畫面刻意不動：正在廣播就繼續廣播（強制模式照常），沒在廣播就維持原畫面；

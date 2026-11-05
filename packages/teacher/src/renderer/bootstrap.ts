@@ -1799,6 +1799,7 @@ function startDemo(peerId: string, name: string): void {
   const watchOk = session.watchStudent(peerId, true, 700);
   if (!watchOk) log('warn', '[demo] 上傳啟動失敗：示範者的控制通道未開（無法開始示範）');
   demoPeer = peerId;
+  els.btnMonitorWall.textContent = '📢 轉發中：' + name;
   log('info', '[demo] 開始轉播 ' + name + '（peerId=' + peerId + '）');
   log('info', `📢 學生示範開始：${name} 的畫面正在播給全班。再點一次 📢 或按 ESC 結束。`);
 }
@@ -1810,6 +1811,7 @@ function stopDemo(): void {
   session?.watchStudent(demoPeer, false);
   session?.demoBroadcast(false, demoPeer);
   demoPeer = null;
+  els.btnMonitorWall.textContent = '🖥 監控牆';
   if (demoWasBroadcasting) {
     // 恢復教師廣播（image 模式）：pump 重啟 + 重發 broadcast on
     const resumed = session?.resumeTeacherPump() ?? false;

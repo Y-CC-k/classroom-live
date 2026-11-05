@@ -17,8 +17,21 @@ import { findVideoSender, preferVideoCodecs, tuneSender, describe } from './enco
 /** 監看幀的大小上限（防呆：超過 8MB 的「一幀」當然不是真的幀） */
 const WATCH_MAX_FRAME_BYTES = 8 * 1024 * 1024;
 
+/** ArrayBuffer → base64（demo 幀走 ctl 通道 JSON 用） */
+function bufToB64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  let binary = '';
+  const step = 0x8000;
+  for (let i = 0; i < bytes.length; i += step) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + step));
+  }
+  return btoa(binary);
+}
+
 export class BroadcastManager {
   private demoSeq = 0;
+
+  private demoB64Seq = 0;
   private readonly options: TeacherSessionOptions;
   private client: SignalingClient | null = null;
   private readonly links = new Map<string, Link>();
@@ -747,8 +760,34 @@ export class BroadcastManager {
         // 單台失敗不影響其他台
       }
     }
-    this.options.onLog('info', `[demo] 中繼 ${Math.round(buffer.byteLength / 1024)} KB → ${sent} 台`);
-    return sent;
+
+    // ── 路徑 2：ctl 通道（JSON base64 分片）——唯一被證明教師→學生 100% 可用的下行 ──
+    const seq2 = ++this.demoB64Seq;
+    const b64 = bufToB64(buffer);
+    const CHUNK = 60000;
+    const total = Math.ceil(b64.length / CHUNK);
+    const begin = JSON.stringify({ t: 'demo-frame-begin', seq: seq2, width, height, total });
+    const endMsg = JSON.stringify({ t: 'demo-frame-end', seq: seq2 });
+    let ctlSent = 0;
+    for (const [, link] of this.links) {
+      const ch = link.ctl;
+      if (!ch || ch.readyState !== 'open') continue;
+      try {
+        ch.send(begin);
+        for (let part = 0; part < total; part++) {
+          ch.send(JSON.stringify({ t: 'demo-chunk', seq: seq2, part, b64: b64.substr(part * CHUNK, CHUNK) }));
+        }
+        ch.send(endMsg);
+        ctlSent++;
+      } catch {
+        // 單台失敗不影響其他台
+      }
+    }
+    this.options.onLog(
+      'info',
+      `[demo] 中繼 ${Math.round(buffer.byteLength / 1024)} KB → evt:${sent} 台 ctl:${ctlSent} 台`
+    );
+    return Math.max(sent, ctlSent);
   }
 
   /**

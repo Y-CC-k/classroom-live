@@ -80,6 +80,13 @@ export type CtlMessage =
    */
   | { t: 'lock'; on: boolean }
   /**
+   * 學生示範中繼（ctl 通道 JSON base64 分片；ctl 是唯一被證明下行 100% 可用的通道）。
+   * begin → chunk × total → end，學生端收齊後組 JPEG 顯示。
+   */
+  | { t: 'demo-frame-begin'; seq: number; width: number; height: number; total: number }
+  | { t: 'demo-chunk'; seq: number; part: number; b64: string }
+  | { t: 'demo-frame-end'; seq: number }
+  /**
    * 教師端的獨立「靜音」指令（右欄按鍵；與廣播開關脫鉤）：
    * 學生端持續維持系統靜音（每 3 秒重設），off = 解除並還原聲音。
    * 教師端會記住意圖並在學生重連時補送（跟「lock」同一套語義）。
