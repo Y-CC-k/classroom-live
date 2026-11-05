@@ -871,14 +871,22 @@ async function connect(): Promise<void> {
       const camEl = document.querySelector(
         '.card-cam[data-peer-id="' + peerId + '"]'
       ) as HTMLImageElement | null;
+      let consumed = false;
       if (camEl) {
         const old = cardCamUrls.get(peerId);
-        if (old) URL.revokeObjectURL(old);
         cardCamUrls.set(peerId, frame.url);
         camEl.src = frame.url;
+        // 只 revoke 舊 URL（舊圖已完成載入，安全）。新 URL 交給卡片持有：
+        // blob 圖片載入是非同步的，src 設定後立刻 revoke 會中斷載入（黑格）。
+        if (old) URL.revokeObjectURL(old);
+        consumed = true;
       }
-      if (monitorWall?.isVisible) monitorWall.handleWatchFrame(peerId, frame);
-      else URL.revokeObjectURL(frame.url);
+      if (monitorWall?.isVisible) {
+        monitorWall.handleWatchFrame(peerId, frame);
+        consumed = true;
+      }
+      // 沒人消費這幀才釋放
+      if (!consumed) URL.revokeObjectURL(frame.url);
     },
     onStatus: (status, detail) => {
       switch (status) {
