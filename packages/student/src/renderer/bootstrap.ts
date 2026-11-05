@@ -622,6 +622,10 @@ async function acceptBroadcast(description: RTCSessionDescriptionInit): Promise<
       channel.onclose = () => {
         // 學生示範下行：示範者畫面幀（JSON hdr → 裸分片 → JSON end）
         channel.onmessage = message => {
+          if (!evtDownlinkSeen) {
+            evtDownlinkSeen = true;
+            log('info', '[demo] evt 通道下行啟用（收到第一條訊息）');
+          }
           if (message.data instanceof ArrayBuffer) {
             if (demoIncoming) {
               demoIncoming.chunks.push(new Uint8Array(message.data));
@@ -770,6 +774,7 @@ let incomingImg: { size: number; chunks: Uint8Array[]; received: number } | null
 let lastImgUrl: string | null = null;
 let imgFirstFrameLogged = false;
 /** 學生示範下行組幀桶（evt 通道） */
+let evtDownlinkSeen = false;
 let demoIncoming: {
   seq: number;
   width: number;
