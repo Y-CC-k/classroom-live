@@ -27,6 +27,13 @@ function log(message) {
   console.log(`[upgrade-pack] ${message}`);
 }
 
+/** 檔名時間戳：讓「新舊升級包」一眼可辨（舊固定名容易拿錯） */
+function buildStamp() {
+  const d = new Date();
+  const p = v => String(v).padStart(2, '0');
+  return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}`;
+}
+
 // 解析命令列參數 --name <名稱>
 const args = process.argv.slice(2);
 let customName = null;
@@ -47,7 +54,7 @@ try {
   log('警告：讀取 student package.json 失敗，使用預設版本 0.1.0');
 }
 
-const zipName = customName || `學生機升級包 ${version}.zip`;
+const zipName = customName || `學生機升級包 ${version} ${buildStamp()}.zip`;
 const zipPath = path.join(root, zipName);
 
 // 確認 dist 存在
