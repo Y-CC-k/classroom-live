@@ -169,6 +169,8 @@ export function initializeApp(): void {
   // 所以不能用 renderer 的 keydown（窗口隱藏時收不到鍵盤事件）。
   try {
     globalShortcut.register('F1', () => {
+      mainWindow?.show();
+      mainWindow?.focus();
       notifyRenderer('hand-raise');
     });
     console.log('[hand] F1 全局熱鍵已註冊');
