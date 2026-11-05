@@ -760,15 +760,19 @@ export class BroadcastManager {
    * 不會發幀（pump 只在 setLocalStream 有串流時運作），學生機收到的
    * img 幀全部來自示範中繼。
    */
-  demoBroadcast(on: boolean): void {
+  demoBroadcast(on: boolean, exceptPeerId?: string): void {
+    // exceptPeerId = 示範者本人：**絕不能**讓示範者進入接收模式——
+    // 它的螢幕會切到「等待 relay 幀」（黑屏），而它自己的螢幕捕獲
+    // 捕到的正是這個黑屏 → 轉發全班 → 全班黑（自拍迴路）。
     let ok = 0;
-    for (const [, link] of this.links) {
+    for (const [peerId, link] of this.links) {
+      if (exceptPeerId && peerId === exceptPeerId) continue;
       if (link.ctl?.readyState === 'open') {
-        this.sendCtl(link.state.info.id, { t: 'broadcast', on, mode: 'image' });
+        this.sendCtl(peerId, { t: 'broadcast', on, mode: 'image' });
         ok++;
       }
     }
-    this.options.onLog('info', `[demo] 接收模式 ${on ? 'on' : 'off'} 已通知 ${ok}/${this.links.size} 台`);
+    this.options.onLog('info', `[demo] 接收模式 ${on ? 'on' : 'off'} 已通知 ${ok}/${this.links.size} 台（排除示範者）`);
   }
 
   /**

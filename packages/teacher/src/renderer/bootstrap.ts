@@ -1787,8 +1787,12 @@ function startDemo(peerId: string, name: string): void {
   // 暫停教師泵但**不發 broadcast off**——若走 stopBroadcast，其 broadcast off
   // 會異步覆蓋示範的 broadcast on，學生機就會黑屏「等待教師廣播」。
   session.pauseTeacherPump();
-  // 全班進入 image 接收模式（學生端收到的 img 幀全部來自示範中繼）
-  session.demoBroadcast(true);
+  // 全班（**示範者除外**）進入 image 接收模式：示範者要保持顯示自己的
+  // 真實桌面——若它也切到接收模式，螢幕變黑後被自己的螢幕捕獲拍到，
+  // 轉發全班全黑（自拍迴路）。
+  session.demoBroadcast(true, peerId);
+  // 若示範機縮在系統匣，Chromium 停止其畫面合成會上傳黑幀：還原它的視窗
+  session.sendCtl(peerId, { t: 'minimize', on: false });
   // 示範者高頻上傳（0.7 秒/張，走現有監看上傳路徑）
   const watchOk = session.watchStudent(peerId, true, 700);
   if (!watchOk) log('warn', '[demo] 上傳啟動失敗：示範者的控制通道未開（無法開始示範）');
@@ -1802,7 +1806,7 @@ function stopDemo(): void {
   if (!demoPeer) return;
   const name = session?.students().find(s => s.info.id === demoPeer)?.info.name ?? demoPeer;
   session?.watchStudent(demoPeer, false);
-  session?.demoBroadcast(false);
+  session?.demoBroadcast(false, demoPeer);
   demoPeer = null;
   if (demoWasBroadcasting) {
     // 恢復教師廣播（image 模式）：pump 重啟 + 重發 broadcast on

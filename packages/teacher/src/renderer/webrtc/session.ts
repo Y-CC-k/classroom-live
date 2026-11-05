@@ -399,9 +399,9 @@ export class TeacherSession {
     return this.broadcastManager.relayFrame(buffer);
   }
 
-  /** 學生示範的接收模式開關：對所有學生機發 broadcast on/off (image) */
-  demoBroadcast(on: boolean): void {
-    this.broadcastManager.demoBroadcast(on);
+  /** 學生示範的接收模式開關：對**示範者以外**的學生機發 broadcast on/off (image) */
+  demoBroadcast(on: boolean, exceptPeerId?: string): void {
+    this.broadcastManager.demoBroadcast(on, exceptPeerId);
   }
 
   /** 學生示範用：暫停教師圖片泵（不發 broadcast off，避免黑屏競態） */
