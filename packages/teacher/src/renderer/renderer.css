@@ -633,6 +633,14 @@ select:disabled {
   word-break: break-all;
 }
 
+.log li.hand {
+  color: var(--ok);
+}
+
+.log li.hand time {
+  color: var(--ok);
+}
+
 .log li.warn {
   color: var(--warn);
 }
@@ -857,7 +865,7 @@ select:disabled {
 }
 
 .control-head #control-label {
-  font-size: 20px;
+  font-size: 15px;
 }
 
 .control-head .control-hint {
@@ -981,7 +989,7 @@ select:disabled {
   border-radius: 6px;
   color: #fff;
   cursor: pointer;
-  font-size: 20px;
+  font-size: 15px;
   padding: 4px 10px;
   opacity: 0.9;
   border-width: 2px;

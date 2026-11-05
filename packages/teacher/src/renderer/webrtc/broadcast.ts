@@ -473,6 +473,17 @@ export class BroadcastManager {
         return;
       }
       link.state.lastSeenAt = Date.now();
+      if (parsed.t === 'hand-raise') {
+        // 「學習操作模式」＝未廣播＋未鎖定＋未靜音（教學活動進行中不回應舉手）
+        const learning = !this.getLocalStream() && !this.lockOn && !this.muteOn;
+        if (learning && parsed.on) {
+          this.options.onLog('hand', `🙋 舉手：${link.state.info.name}`);
+        } else if (learning && !parsed.on) {
+          this.options.onLog('hand', `🙋 ${link.state.info.name} 收回舉手`);
+        }
+        // 非學習操作模式：靜默不回應（依需求）
+        return;
+      }
       if (parsed.t === 'demo-ack') {
         this.options.onLog(
           'info',

@@ -42,7 +42,7 @@ export interface Link {
 export interface TeacherSessionEvents {
   onStatus(status: SignalingStatus, detail?: string): void;
   onStudentsChanged(): void;
-  onLog(level: 'info' | 'warn' | 'error', message: string): void;
+  onLog(level: 'info' | 'warn' | 'error' | 'hand', message: string): void;
 }
 
 /** 建構 TeacherSession 時需傳入的選項 */

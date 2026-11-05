@@ -685,7 +685,8 @@ async function acceptBroadcast(description: RTCSessionDescriptionInit): Promise<
         };
         evt = null;
         evtQueue = [];
-        demoIncoming = null; // 斷線後的舊訊息一律作廢，新連線會重新送 hello
+        demoIncoming = null;
+        handRaised = false; // 斷線後的舊訊息一律作廢，新連線會重新送 hello
       };
     } else if (channel.label === DC_FILE) {
       fileCtl = channel;
@@ -786,6 +787,7 @@ let lastImgUrl: string | null = null;
 let imgFirstFrameLogged = false;
 /** 學生示範下行組幀桶（evt 通道） */
 let evtDownlinkSeen = false;
+let handRaised = false;
 let demoIncoming: {
   seq: number;
   width: number;
@@ -1652,6 +1654,15 @@ function bindEvents(): void {
   // 安裝版沒有 console，這是唯一看得到主行程狀態的窗口。
   window.studentEvents.onMainLog(line => {
     log('info', `[main] ${line}`);
+  });
+
+  // F1 舉手／收回（切換；送 evt 上行，教師端依課堂模式決定是否回應）
+  window.addEventListener('keydown', event => {
+    if (event.key !== 'F1') return;
+    event.preventDefault();
+    handRaised = !handRaised;
+    sendEvt({ t: 'hand-raise', on: handRaised, ts: Date.now() });
+    log('info', handRaised ? '🙋 已舉手（信號已送出）' : '已收回舉手');
   });
 
   // Esc 先收選單

@@ -192,7 +192,7 @@ const els = {
 };
 
 // ───────────────────────────── 小工具 ─────────────────────────────
-function log(level: 'info' | 'warn' | 'error', message: string): void {
+function log(level: 'info' | 'warn' | 'error' | 'hand', message: string): void {
   const item = document.createElement('li');
   item.className = level;
   const time = document.createElement('time');

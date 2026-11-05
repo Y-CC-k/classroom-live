@@ -165,7 +165,9 @@ export type EvtMessage =
   | { t: 'watch-frame-hdr'; seq: number; width: number; height: number; size: number }
   | { t: 'watch-frame-end'; seq: number; ok: boolean }
   /** 學生示範接收回報：讓教師端日志直接顯示「誰在接收」（閉環診斷） */
-  | { t: 'demo-ack'; stage: 'begin' | 'frame'; ts: number };
+  | { t: 'demo-ack'; stage: 'begin' | 'frame'; ts: number }
+  /** 學生舉手／收回（F1 切換）；教師端僅在「學習操作模式」回應顯示 */
+  | { t: 'hand-raise'; on: boolean; ts: number };
 
 export type DcMessage = CtlMessage | EvtMessage;
 
