@@ -614,6 +614,8 @@ async function acceptBroadcast(description: RTCSessionDescriptionInit): Promise<
       };
     } else if (channel.label === DC_EVT) {
       evt = channel;
+      // 下行的示範幀是裸二進位：必須收成 ArrayBuffer（預設 blob 會讓幀被丟棄）
+      channel.binaryType = 'arraybuffer';
       // 遠端建立後可能已 open（也可能還在 connecting）：兩種都要能補送
       if (channel.readyState === 'open') flushEvtQueue();
       else channel.onopen = flushEvtQueue;
