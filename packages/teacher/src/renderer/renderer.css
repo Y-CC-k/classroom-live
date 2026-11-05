@@ -804,7 +804,7 @@ select:disabled {
 .wall-cell-control {
   position: absolute;
   top: 4px;
-  right: 36px;
+  right: 4px;
   z-index: 3;
   opacity: 0;
   transition: opacity 0.15s ease;
@@ -825,7 +825,7 @@ select:disabled {
 .wall-cell-snap {
   position: absolute;
   top: 4px;
-  right: 4px;
+  right: 38px;
   z-index: 3;
   opacity: 0;
   transition: opacity 0.15s ease;
@@ -871,11 +871,11 @@ select:disabled {
 }
 
 .wall-cell-snap,
-.wall-cell-control {
-  font-size: 20px;
-  padding: 4px 10px;
-  opacity: 0.9;
-  border-width: 2px;
+.wall-cell-control,
+.wall-cell-demo {
+  font-size: 15px;
+  padding: 3px 8px;
+  opacity: 0.92;
 }
 
 .wall-cell:hover .wall-cell-snap,
@@ -960,7 +960,7 @@ select:disabled {
 
 /* ── 修正：按鈕加大後的重疊與擠壓 ── */
 .wall-cell-control {
-  right: 56px;
+  right: 4px;
 }
 
 /* 📢 示範按鈕：樣式同接管鈕，位置在接管鈕左側 */
@@ -972,7 +972,7 @@ select:disabled {
 .wall-cell-demo {
   position: absolute;
   top: 4px;
-  right: 84px;
+  right: 72px;
   z-index: 3;
   opacity: 0;
   transition: opacity 0.15s ease;
