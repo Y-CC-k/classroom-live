@@ -141,9 +141,23 @@ export function registerSystemCommandsIpc(): void {
       if (!latest) return { ok: false, reason: 'no Setup.exe in save dir' };
       const setupPath = path.join(dir, latest.name);
       const exePath = process.execPath;
-      const cmd = `"${setupPath}" /S & timeout /t 12 /nobreak >nul & start "" "${exePath}"`;
-      spawn('cmd.exe', ['/c', cmd], { detached: true, windowsHide: true, stdio: 'ignore' }).unref();
+      // 暫存 .bat（安裝 → 等待 → 啟動新版）：bat 內引號直寫無轉義問題，
+      // detached 獨立於學生機行程——安裝器關掉本程式後 bat 仍會跑完。
+      const batPath = path.join(app.getPath('temp'), 'classroom-silent-update.bat');
+      fs.writeFileSync(
+        batPath,
+        [
+          '@echo off',
+          `"${setupPath}" /S`,
+          'timeout /t 6 /nobreak >nul',
+          `start "" "${exePath}"`,
+          'del "%~f0"',
+        ].join('\r\n'),
+        'utf8'
+      );
+      spawn(batPath, [], { detached: true, windowsHide: true, stdio: 'ignore' }).unref();
       console.log('[silent-update] started:', latest.name);
+      // 給安裝器幾秒接管，然後本程式自行退出（NSIS 才能覆蓋檔案）
       setTimeout(() => app.exit(0), 4000);
       return { ok: true, message: 'silent install started' };
     } catch (error) {
