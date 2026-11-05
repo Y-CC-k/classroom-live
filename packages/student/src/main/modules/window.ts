@@ -167,16 +167,19 @@ export function initializeApp(): void {
 
   // F1 舉手：系統級全局熱鍵——學生機縮在系統匣（窗口隱藏、無焦點）時也要能觸發，
   // 所以不能用 renderer 的 keydown（窗口隱藏時收不到鍵盤事件）。
-  try {
-    globalShortcut.register('F1', () => {
-      mainWindow?.show();
-      mainWindow?.focus();
-      notifyRenderer('hand-raise');
-    });
-    console.log('[hand] F1 全局熱鍵已註冊');
-  } catch (error) {
-    console.error('[hand] F1 熱鍵註冊失敗', error);
-  }
+  app.whenReady().then(() => {
+    try {
+      const ok = globalShortcut.register('F1', () => {
+        mainWindow?.show();
+        mainWindow?.focus();
+        notifyRenderer('hand-raise');
+      });
+      if (ok) console.log('[hand] F1 OK');
+      else console.error('[hand] F1 register FAILED');
+    } catch (error) {
+      console.error('[hand] F1 register error', error);
+    }
+  });
   app.on('will-quit', () => {
     try {
       globalShortcut.unregisterAll();
