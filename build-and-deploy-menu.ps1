@@ -61,13 +61,7 @@ function Get-StudentUnpack {
 }
 
 
-function Invoke-UpgradePack {
-    Invoke-Pack -ScriptName "make-upgrade-pack" -Label "學生機升級包（含 native 模組）"
-    $src = Get-ChildItem -Path $PSScriptRoot -Filter "學生機升級包 *.zip" -ErrorAction SilentlyContinue | Select-Object -First 1
-    if ($src -and (Test-Path $deployDir)) {
-        Copy-Item $src.FullName -Destination (Join-Path $deployDir $src.Name) -Force -ErrorAction SilentlyContinue
-    }
-}
+
 
 
 function Invoke-Pack {
@@ -102,12 +96,11 @@ function Show-Menu {
     Show-Info "   Classroom Live - 打包部署選單"
     Show-Info "==================================================="
     Write-Host ""
-    Write-Host "  [1] 全套打包 + 更新 deploy（pack:all + 安裝包 + 升級包.zip）" -ForegroundColor White
+    Write-Host "  [1] 全套打包 + 更新 deploy（全部 Setup.exe）" -ForegroundColor White
     Write-Host "  [2] 只打包教師機 + 更新 deploy" -ForegroundColor White
-    Write-Host "  [3] 只打包學生機 + 更新 deploy（含升級包.zip）" -ForegroundColor White
+    Write-Host "  [3] 只打包學生機 + 更新 deploy" -ForegroundColor White
     Write-Host "  [4] 只打包伺服器 + 伺服器GUI + 更新 deploy" -ForegroundColor White
-    Write-Host "  [5] 不重新打包，把現有結果更新到 deploy（安裝包 + 兩個 zip）" -ForegroundColor White
-    Write-Host "  [6] 只產生 學生機升級包（make-upgrade-pack，含 native）" -ForegroundColor White
+    Write-Host "  [5] 不重新打包，把現有結果更新到 deploy（Setup.exe 們）" -ForegroundColor White
     Write-Host "  [8] 只打包教師機（簡易版）+ 更新 deploy" -ForegroundColor White
     Write-Host "  [0] 結束" -ForegroundColor DarkGray
     Write-Host ""
@@ -127,8 +120,6 @@ do {
                 Copy-Alias -Folder "teacher" -AliasName "教師機部署包.exe"
                 Copy-Alias -Folder "student" -AliasName "學生機部署包.exe"
                 Copy-Alias -Folder "teacher-lite" -AliasName "教師機簡易版部署包.exe"
-                Invoke-UpgradePack
-                Show-DeployList
             } catch {
                 Show-Fail $_.Exception.Message
                 Write-Host "  請查看上方輸出訊息" -ForegroundColor Yellow
@@ -153,8 +144,6 @@ do {
                 Invoke-Pack -ScriptName "pack:student" -Label "學生機"
                 Copy-SetupsByFolder -Folders @("student")
                 Copy-Alias -Folder "student" -AliasName "學生機部署包.exe"
-                Invoke-UpgradePack
-                Show-DeployList
             } catch {
                 Show-Fail $_.Exception.Message
             }
@@ -179,21 +168,12 @@ do {
                 Copy-Alias -Folder "teacher" -AliasName "教師機部署包.exe"
                 Copy-Alias -Folder "student" -AliasName "學生機部署包.exe"
                 Copy-Alias -Folder "teacher-lite" -AliasName "教師機簡易版部署包.exe"
-                Invoke-UpgradePack
-                Show-DeployList
             } catch {
                 Show-Fail $_.Exception.Message
             }
             pause
         }
-        "6" {
-            try {
-                Invoke-UpgradePack
-            } catch {
-                Show-Fail $_.Exception.Message
-            }
-            pause
-        }
+
         "8" {
             try {
                 if (-not (Ensure-DeployDir)) { throw "無法使用 C:\deploy" }
