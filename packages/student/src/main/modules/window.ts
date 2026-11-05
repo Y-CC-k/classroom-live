@@ -68,39 +68,12 @@ export function createWindow(deps: WindowManagerDeps): BrowserWindow {
 
   window.webContents.on('did-start-loading', () => deps.enforcer.reset());
 
-  let closePromptOpen = false;
+  // 關閉視窗（X）＝縮到系統匣：不提供 UI 退出入口（學生無法自行結束程式）。
+  // 資訊組／維護需要結束時：透過教師端關機／重開機指令，或 Windows 工作管理員。
   window.on('close', event => {
     if (quitting) return;
     event.preventDefault();
-    if (closePromptOpen) return;
-
-    closePromptOpen = true;
-
-    void dialog
-      .showMessageBox(window, {
-        type: 'question',
-        buttons: ['縮到系統匣', '結束學生機'],
-        defaultId: 0,
-        cancelId: 0,
-        noLink: true,
-        title: '關閉學生機',
-        message: '要縮到系統匣繼續上課，還是結束學生機？',
-        detail: '縮到系統匣後仍會保持連線，老師依然找得到這台機器。',
-      })
-      .then(({ response }) => {
-        if (response === 1) {
-          quitting = true;
-          app.quit();
-        } else {
-          window.hide();
-        }
-      })
-      .catch(() => {
-        window.hide();
-      })
-      .finally(() => {
-        closePromptOpen = false;
-      });
+    window.hide();
   });
 
   window.on('closed', () => {
@@ -124,7 +97,7 @@ function notifyRenderer(command: HostCommand): void {
 function buildTray(deps: WindowManagerDeps): void {
   const icon = nativeImage.createFromDataURL(`data:image/png;base64,${TRAY_ICON_PNG_BASE64}`);
   tray = new Tray(icon);
-  tray.setToolTip('教室直播 — 學生機');
+  tray.setToolTip('教室直播 — 學生機（執行中）');
 
   const menu = Menu.buildFromTemplate([
     {
@@ -138,11 +111,6 @@ function buildTray(deps: WindowManagerDeps): void {
     {
       label: '重新連線',
       click: deps.onReconnect,
-    },
-    { type: 'separator' },
-    {
-      label: '結束',
-      click: deps.onQuitApp,
     },
   ]);
 
