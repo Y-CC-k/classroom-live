@@ -54,7 +54,7 @@ try {
   log('警告：讀取 student package.json 失敗，使用預設版本 0.1.0');
 }
 
-const zipName = customName || `學生機升級包 ${version} ${buildStamp()}.zip`;
+const zipName = customName || '學生機升級包.zip';
 const zipPath = path.join(root, zipName);
 
 // 確認 dist 存在
