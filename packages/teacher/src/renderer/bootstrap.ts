@@ -862,10 +862,12 @@ async function connect(): Promise<void> {
           frame.blob
             .arrayBuffer()
             .then(buf => {
-              const sent = session?.relayFrame(buf) ?? 0;
+              const sent = session?.relayFrame(buf, frame.width, frame.height) ?? 0;
               if (sent === 0) log('warn', '[demo] 幀未送達任何學生機（積塞或離線）');
             })
-            .catch(error => log('warn', '[demo] 中繼例外：' + (error instanceof Error ? error.message : String(error))));
+            .catch(error =>
+              log('warn', '[demo] 中繼例外：' + (error instanceof Error ? error.message : String(error)))
+            );
           if (!demoFirstFrameLogged) {
             demoFirstFrameLogged = true;
             log(

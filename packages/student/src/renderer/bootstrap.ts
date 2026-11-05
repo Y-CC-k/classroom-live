@@ -618,8 +618,57 @@ async function acceptBroadcast(description: RTCSessionDescriptionInit): Promise<
       if (channel.readyState === 'open') flushEvtQueue();
       else channel.onopen = flushEvtQueue;
       channel.onclose = () => {
+        // 學生示範下行：示範者畫面幀（JSON hdr → 裸分片 → JSON end）
+        channel.onmessage = message => {
+          if (message.data instanceof ArrayBuffer) {
+            if (demoIncoming) {
+              demoIncoming.chunks.push(new Uint8Array(message.data));
+              demoIncoming.received += message.data.byteLength;
+            }
+            return;
+          }
+          let parsed: { t: string; seq?: number; width?: number; height?: number; size?: number };
+          try {
+            parsed = JSON.parse(String(message.data));
+          } catch {
+            return;
+          }
+          if (parsed.t === 'demo-frame-hdr') {
+            demoIncoming = {
+              seq: Number(parsed.seq) || 0,
+              width: Number(parsed.width) || 0,
+              height: Number(parsed.height) || 0,
+              size: Number(parsed.size) || 0,
+              chunks: [],
+              received: 0,
+            };
+          } else if (parsed.t === 'demo-frame-end') {
+            if (!demoIncoming) return;
+            try {
+              const merged = new Uint8Array(demoIncoming.size);
+              let off = 0;
+              for (const chunk of demoIncoming.chunks) {
+                merged.set(chunk, off);
+                off += chunk.byteLength;
+              }
+              const blob = new Blob([merged], { type: 'image/jpeg' });
+              const url = URL.createObjectURL(blob);
+              if (lastImgUrl) URL.revokeObjectURL(lastImgUrl);
+              lastImgUrl = url;
+              els.broadcastImg.src = url;
+              if (!imgFirstFrameLogged) {
+                imgFirstFrameLogged = true;
+                log('info', '[demo] 收到第一張示範畫面（' + Math.round(blob.size / 1024) + ' KB）');
+              }
+            } catch (error) {
+              log('warn', '示範畫面組幀失敗：' + (error instanceof Error ? error.message : String(error)));
+            }
+            demoIncoming = null;
+          }
+        };
         evt = null;
-        evtQueue = []; // 斷線後的舊訊息一律作廢，新連線會重新送 hello
+        evtQueue = [];
+        demoIncoming = null; // 斷線後的舊訊息一律作廢，新連線會重新送 hello
       };
     } else if (channel.label === DC_FILE) {
       fileCtl = channel;
@@ -718,6 +767,15 @@ function closeBroadcast(): void {
 let incomingImg: { size: number; chunks: Uint8Array[]; received: number } | null = null;
 let lastImgUrl: string | null = null;
 let imgFirstFrameLogged = false;
+/** 學生示範下行組幀桶（evt 通道） */
+let demoIncoming: {
+  seq: number;
+  width: number;
+  height: number;
+  size: number;
+  chunks: Uint8Array[];
+  received: number;
+} | null = null;
 let imgChannelSeen = false;
 
 /** 圖片通道：hdr(JSON) → JPEG 裸分片 → end(JSON)。end 一到就組起來顯示。 */

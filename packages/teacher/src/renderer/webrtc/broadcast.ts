@@ -18,6 +18,7 @@ import { findVideoSender, preferVideoCodecs, tuneSender, describe } from './enco
 const WATCH_MAX_FRAME_BYTES = 8 * 1024 * 1024;
 
 export class BroadcastManager {
+  private demoSeq = 0;
   private readonly options: TeacherSessionOptions;
   private client: SignalingClient | null = null;
   private readonly links = new Map<string, Link>();
@@ -721,36 +722,32 @@ export class BroadcastManager {
   }
 
   /**
-   * 學生示範中繼：把示範學生機上傳的 JPEG 幀轉發給**所有**已連線學生機。
-   * 刻意不經過 pump.getChannels()（那會被「只播勾選台」的 targets 過濾），
-   * 示範一律送全班。信封與教師廣播相同（img-hdr → 分片 → img-end）。
+   * 學生示範中繼：把示範學生機上傳的 JPEG 幀轉發給**示範者以外**的學生機。
+   * 下行走 **evt 通道**（系統中唯一被反覆證明雙向可用的通道，與監看上行
+   * 完全對稱：JSON hdr → 裸分片 → JSON end）。img 通道在「教師從未廣播」
+   * 的環境下實測不可靠，示範不再依賴它。
    */
-  relayFrame(buffer: ArrayBuffer): number {
-    const channels = [...this.links.values()]
-      .map(link => link.img)
-      .filter((c): c is RTCDataChannel => c !== null && c !== undefined && c.readyState === 'open');
-    if (channels.length === 0) {
-      const total = this.links.size;
-      const states = [...this.links.values()]
-        .map(l => `${l.state.info.id}:img=${l.img ? l.img.readyState : 'null'}`)
-        .join(', ');
-      this.options.onLog('warn', `[demo] 中繼失敗：img 通道 0/${total}（${states}）`);
-    }
+  relayFrame(buffer: ArrayBuffer, width: number, height: number): number {
+    const seq = ++this.demoSeq;
+    const hdr = JSON.stringify({ t: 'demo-frame-hdr', seq, width, height, size: buffer.byteLength });
+    const end = JSON.stringify({ t: 'demo-frame-end', seq, ok: true });
     let sent = 0;
-    for (const channel of channels) {
+    for (const [peerId, link] of this.links) {
+      const channel = link.evt;
+      if (!channel || channel.readyState !== 'open') continue;
       if (channel.bufferedAmount > 512 * 1024) continue; // 積塞保護
       try {
-        channel.send(JSON.stringify({ t: 'img-hdr', size: buffer.byteLength }));
+        channel.send(hdr);
         for (let offset = 0; offset < buffer.byteLength; offset += FILE_CHUNK_SIZE) {
           channel.send(buffer.slice(offset, Math.min(offset + FILE_CHUNK_SIZE, buffer.byteLength)));
         }
-        channel.send(JSON.stringify({ t: 'img-end' }));
+        channel.send(end);
         sent++;
       } catch {
         // 單台失敗不影響其他台
       }
     }
-    this.options.onLog('info', `[demo] 中繼 ${Math.round(buffer.byteLength / 1024)} KB → ${sent}/${channels.length} 台`);
+    this.options.onLog('info', `[demo] 中繼 ${Math.round(buffer.byteLength / 1024)} KB → ${sent} 台`);
     return sent;
   }
 

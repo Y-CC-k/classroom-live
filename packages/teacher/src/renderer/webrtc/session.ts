@@ -394,9 +394,9 @@ export class TeacherSession {
     return this.controlManager.isLocked(peerId);
   }
 
-  /** 學生示範中繼：把示範學生機的 JPEG 幀轉發給所有學生機（img 通道） */
-  relayFrame(buffer: ArrayBuffer): number {
-    return this.broadcastManager.relayFrame(buffer);
+  /** 學生示範中繼：把示範學生機的 JPEG 幀轉發給其他學生機（evt 通道） */
+  relayFrame(buffer: ArrayBuffer, width: number, height: number): number {
+    return this.broadcastManager.relayFrame(buffer, width, height);
   }
 
   /** 學生示範的接收模式開關：對**示範者以外**的學生機發 broadcast on/off (image) */
