@@ -111,7 +111,17 @@ export function registerUpdateIpc(): void {
       }
       return { ok: false, reason: `解壓失敗：${msg}` };
     }
-    updateLog('expanded update OK');
+    // overwrite verification: read back the actually-applied version
+    let appliedBuild = 'unknown';
+    try {
+      const bi = JSON.parse(
+        fs.readFileSync(path.join(appDir, 'dist', 'build-info.json'), 'utf8')
+      );
+      appliedBuild = bi.builtAt ?? 'unknown';
+    } catch {
+      /* not found -> unknown */
+    }
+    updateLog(`expanded update OK, appliedBuild=${appliedBuild}`);
     try {
       fs.rmSync(stage, { recursive: true, force: true });
     } catch {
@@ -122,6 +132,6 @@ export function registerUpdateIpc(): void {
     console.log('[update] expanded update OK，即將重啟上新版');
     app.relaunch();
     app.exit(0);
-    return { ok: true };
+    return { ok: true, appliedBuild } as { ok: true; appliedBuild: string };
   });
 }

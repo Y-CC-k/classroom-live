@@ -1481,7 +1481,9 @@ async function handleControl(raw: unknown): Promise<void> {
           t: 'update-result',
           ok: result.ok,
           stage: result.ok ? 'apply' : 'rejected',
-          message: result.ok ? '解壓成功，本機即將重啟上新版' : result.reason,
+          message: result.ok
+            ? '解壓成功，新版 build ' + ((result as { appliedBuild?: string }).appliedBuild ?? '?') + ' 已落地（本機重啟中）'
+            : result.reason,
         });
       } catch {
         // 主行程 relaunch+exit 後 IPC 回應拿不到是預期路徑之一；重啟後重連會帶回新 build 標記

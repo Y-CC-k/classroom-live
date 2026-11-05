@@ -239,7 +239,7 @@ export interface StudentApi {
   }): Promise<{ ok: boolean; message?: string }>;
   /** 原生模組狀態 */
   nativeStatus(): Promise<{ ready: boolean; error: string | null }>;
-  applyUpdate(): Promise<{ ok: boolean; reason?: string }>;
+  applyUpdate(): Promise<{ ok: boolean; reason?: string; appliedBuild?: string }>;
   /** 讀取自訂待機底圖（data URL）；未設定回 null */
   getIdleImage(): Promise<string | null>;
   /** UDP 廣播搜尋區網中的教室伺服器；回傳找到的 ws 位址清單 */
