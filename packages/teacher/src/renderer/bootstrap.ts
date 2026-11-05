@@ -674,10 +674,10 @@ function ensureWatching(): void {
   if (!session?.isConnected) return;
   for (const student of session.students()) {
     const id = student.info.id;
-    if (!watchedSet.has(id)) {
-      session.watchStudent(id, true, 3000);
-      watchedSet.add(id);
-    }
+    if (watchedSet.has(id)) continue;
+    // 學生剛加入時 ctl 可能尚未開（協商需 1~2 秒）：
+    // watchStudent 回 false 時不記 watchedSet，由定時補看重試。
+    if (session.watchStudent(id, true, 3000)) watchedSet.add(id);
   }
   const online = new Set(session.students().map(s => s.info.id));
   for (const id of [...watchedSet]) {
@@ -688,6 +688,9 @@ function ensureWatching(): void {
     }
   }
 }
+
+// 定時補看：學生加入瞬間 ctl 未開的台，稍後自動補上（10 秒一次）
+setInterval(() => ensureWatching(), 10_000);
 
 function renderStudents(): void {
   const students = session?.students() ?? [];
