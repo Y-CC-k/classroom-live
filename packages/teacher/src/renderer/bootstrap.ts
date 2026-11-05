@@ -60,8 +60,6 @@ let controllingPeer: string | null = null;
 let demoPeer: string | null = null;
 /** 學生示範啟動前是否正在廣播（結束示範後提示可重開） */
 let demoWasBroadcasting = false;
-const watchedSet = new Set<string>();
-const cardCamUrls = new Map<string, string>();
 let demoFirstFrameLogged = false;
 let controlImgUrl: string | null = null;
 
@@ -124,7 +122,6 @@ const els = {
   btnStart: $<HTMLButtonElement>('btn-start-broadcast'),
   btnStop: $<HTMLButtonElement>('btn-stop-broadcast'),
 
-  studentGrid: $<HTMLDivElement>('student-grid'),
   studentCount: $<HTMLSpanElement>('student-count'),
   emptyStudents: $<HTMLParagraphElement>('empty-students'),
   scaleHint: $<HTMLParagraphElement>('scale-hint'),
@@ -150,7 +147,6 @@ const els = {
   btnUwfMaintOff: $<HTMLButtonElement>('btn-uwf-maint-off'),
   btnSceneTeach: $<HTMLButtonElement>('btn-scene-teach'),
   btnSceneLearn: $<HTMLButtonElement>('btn-scene-learn'),
-  btnMonitorWall: $<HTMLButtonElement>('btn-monitor-wall'),
   monitorWall: $<HTMLDivElement>('monitor-wall'),
 
   // 學生機待機（開機初始）畫面
@@ -670,27 +666,8 @@ async function applyScene(scene: 'teach' | 'learn'): Promise<void> {
   renderStudents();
 }
 
-function ensureWatching(): void {
-  if (!session?.isConnected) return;
-  for (const student of session.students()) {
-    const id = student.info.id;
-    if (watchedSet.has(id)) continue;
-    // 學生剛加入時 ctl 可能尚未開（協商需 1~2 秒）：
-    // watchStudent 回 false 時不記 watchedSet，由定時補看重試。
-    if (session.watchStudent(id, true, 3000)) watchedSet.add(id);
-  }
-  const online = new Set(session.students().map(s => s.info.id));
-  for (const id of [...watchedSet]) {
-    if (!online.has(id)) {
-      watchedSet.delete(id);
-      const old = cardCamUrls.get(id);
-      if (old) { URL.revokeObjectURL(old); cardCamUrls.delete(id); }
-    }
-  }
-}
-
-// 定時補看：學生加入瞬間 ctl 未開的台，稍後自動補上（10 秒一次）
-setInterval(() => ensureWatching(), 10_000);
+// 內嵌監控牆：10 秒定時同步——學生加入瞬間 ctl 未開的台，稍後自動補建格＋補看
+setInterval(() => monitorWall?.syncStudents(), 10_000);
 
 function renderStudents(): void {
   const students = session?.students() ?? [];
@@ -720,31 +697,17 @@ function renderStudents(): void {
   } else {
     els.scaleHint.textContent = '';
   }
-  els.studentGrid.replaceChildren();
+  // 內嵌監控牆：與名單同步（新台建格＋監看、離線台收格、ctl 未開的台稍後補看）
+  monitorWall?.syncStudents();
 
   // 正在監看的那台離線了：自動收掉監看（避免窗一直停在舊畫面）
   refreshSceneButtons();
 
+  // 狀態標籤：廣播狀態／鎖定／錯誤寫進各格（原學生卡片的 meta 資訊）
+  const broadcasting = Boolean(localStream);
   for (const student of students) {
-    const card = document.createElement('div');
-    card.className = 'card';
-
     const peerId = student.info.id;
-    const cam = document.createElement('img');
-    cam.className = 'card-cam';
-    cam.dataset.peerId = peerId;
-    cam.alt = student.info.name;
-    const pickLine = document.createElement('div');
-    pickLine.className = 'pick-line';
-    const name = document.createElement('div');
-    name.className = 'name';
-    name.textContent = `🖥 ${student.info.name}`;
-    name.title = `${student.info.name} (${student.info.id})`;
-    pickLine.append(name);
-
-    const meta = document.createElement('div');
-    meta.className = 'meta';
-    const broadcasting = Boolean(localStream);
+    const tags: HTMLSpanElement[] = [];
     const videoArrived = broadcasting && student.broadcastState === 'connected';
     const broadcastText = videoArrived
       ? '畫面已送達'
@@ -753,16 +716,10 @@ function renderStudents(): void {
         : targets?.has(peerId) === false
           ? '直播排除'
           : '未廣播';
-
-    const broadcastTagClass = videoArrived ? 'tag ok' : targets?.has(peerId) === false ? 'tag' : 'tag';
-    meta.append(tag(broadcastText, broadcastTagClass));
-    if (session?.lockActive) meta.append(tag('已鎖定', 'tag err'));
-    if (student.lastError) meta.append(tag(`錯誤：${student.lastError}`, 'tag err'));
-
-    card.append(cam, pickLine, meta);
-    const lastUrl = cardCamUrls.get(peerId);
-    if (lastUrl) cam.src = lastUrl;
-    els.studentGrid.append(card);
+    tags.push(tag(broadcastText, videoArrived ? 'tag ok' : 'tag'));
+    if (session?.lockActive) tags.push(tag('已鎖定', 'tag err'));
+    if (student.lastError) tags.push(tag(`錯誤：${student.lastError}`, 'tag err'));
+    monitorWall?.setStatus(peerId, tags);
   }
 }
 
@@ -790,7 +747,8 @@ async function connect(): Promise<void> {
     // 斷線前結束接管
     if (controllingPeer) exitControl();
     if (demoPeer) stopDemo();
-    monitorWall?.hide();
+    monitorWall?.dispose();
+    monitorWall = null;
     session.disconnect();
     session = null;
     els.btnConnect.textContent = '連線';
@@ -854,8 +812,7 @@ async function connect(): Promise<void> {
               '[demo] 收到示範者第一幀（' + peerId + '，' + Math.round(frame.blob.size / 1024) + ' KB），開始轉發'
             );
           }
-          if (monitorWall?.isVisible) monitorWall.handleWatchFrame(peerId, frame);
-          else URL.revokeObjectURL(frame.url);
+          if (!monitorWall?.handleWatchFrame(peerId, frame)) URL.revokeObjectURL(frame.url);
         } else {
           URL.revokeObjectURL(frame.url);
         }
@@ -868,25 +825,8 @@ async function connect(): Promise<void> {
         els.controlImg.src = frame.url;
         return;
       }
-      const camEl = document.querySelector(
-        '.card-cam[data-peer-id="' + peerId + '"]'
-      ) as HTMLImageElement | null;
-      let consumed = false;
-      if (camEl) {
-        const old = cardCamUrls.get(peerId);
-        cardCamUrls.set(peerId, frame.url);
-        camEl.src = frame.url;
-        // 只 revoke 舊 URL（舊圖已完成載入，安全）。新 URL 交給卡片持有：
-        // blob 圖片載入是非同步的，src 設定後立刻 revoke 會中斷載入（黑格）。
-        if (old) URL.revokeObjectURL(old);
-        consumed = true;
-      }
-      if (monitorWall?.isVisible) {
-        monitorWall.handleWatchFrame(peerId, frame);
-        consumed = true;
-      }
-      // 沒人消費這幀才釋放
-      if (!consumed) URL.revokeObjectURL(frame.url);
+      // 內嵌監控牆：有格子就餵幀（URL 由格子管理）；沒格子就釋放免得洩漏
+      if (!monitorWall?.handleWatchFrame(peerId, frame)) URL.revokeObjectURL(frame.url);
     },
     onStatus: (status, detail) => {
       switch (status) {
@@ -905,29 +845,24 @@ async function connect(): Promise<void> {
     },
     onStudentsChanged: () => {
       renderStudents();
-      ensureWatching();
     },
     onLog: (level, message) => log(level, message),
   });
 
   session.connect();
-  watchedSet.clear();
   els.btnConnect.textContent = '斷線';
   els.btnStart.disabled = false;
 
-  // 初始化監控牆（session 已建立）
-  // 監控牆：監看全部已連線學生機
+  // 初始化內嵌監控牆（session 已建立）：直接住在中欄，隨名單自動同步
   const activeSession = session;
   monitorWall = new MonitorWall(
     els.monitorWall,
     activeSession,
-    els.btnMonitorWall,
-    () => activeSession.students().map(s => s.info.id),
     (peerId, name, blob) => void handleSnapshot(peerId, name, blob),
     (peerId, name) => takeControl(peerId, name),
-    visible => void window.teacherApi.setFullscreen(visible),
     (peerId, name) => toggleDemo(peerId, name)
   );
+  monitorWall.syncStudents();
 
   // 白板筆：擷取畫面尺寸來源（video 或 img 預覽）
 
@@ -1550,15 +1485,6 @@ function bindEvents(): void {
     log(level, message);
   });
 
-  // 監控牆開關按鈕（由 MonitorWall 內部綁定 toggle，這裡只做額外初始化）
-  els.btnMonitorWall.addEventListener('click', () => {
-    // MonitorWall 已在 constructor 處理 toggle，這裡僅確保 session 存在
-    if (!session?.isConnected) {
-      log('warn', '尚未連線；請先按「連線」再開啟監控牆。');
-      if (monitorWall?.isVisible) monitorWall.hide();
-    }
-  });
-
   window.addEventListener('beforeunload', () => {
     session?.disconnect();
   });
@@ -1599,10 +1525,8 @@ function takeControl(peerId: string, name: string): void {
     return;
   }
   controllingPeer = peerId;
-  if (monitorWall?.isVisible) {
-    monitorWall.hide();
-    log('info', '已自動關閉監控牆（接管結束後重新開啟即可）。');
-  }
+  // 內嵌監控牆暫停監看（釋放頻寬給接管串流），離開接管時自動恢復
+  monitorWall?.suspend();
   els.controlLayer.hidden = false;
   els.controlLabel.textContent = '🎮 接管中：' + name;
   els.controlImg.src = '';
@@ -1625,6 +1549,7 @@ function exitControl(): void {
   els.controlLayer.hidden = true;
   els.controlImg.src = '';
   void window.teacherApi.setFullscreen(false);
+  monitorWall?.resume();
   log('info', `已離開遠端接管（${name}）。`);
 }
 
@@ -1648,7 +1573,6 @@ function startDemo(peerId: string, name: string): void {
   const watchOk = session.watchStudent(peerId, true, 700);
   if (!watchOk) log('warn', '[demo] 上傳啟動失敗：示範者的控制通道未開（無法開始示範）');
   demoPeer = peerId;
-  els.btnMonitorWall.textContent = '📢 轉發中：' + name;
   document.querySelectorAll('.wall-cell.demoing').forEach(el => el.classList.remove('demoing'));
   document.querySelectorAll('.wall-cell[data-peer-id="' + peerId + '"]').forEach(el => el.classList.add('demoing'));
   log('info', '[demo] 開始轉播 ' + name + '（peerId=' + peerId + '）');
@@ -1661,12 +1585,10 @@ function stopDemo(): void {
   const name = session?.students().find(s => s.info.id === demoPeer)?.info.name ?? demoPeer;
   session?.watchStudent(demoPeer, false);
   session?.demoBroadcast(false, demoPeer);
-  // 監控牆若開著：示範者剛被 watch off，以牆目前的節奏重掛監看（牆面持續更新）
-  if (monitorWall?.isVisible)
-    session?.watchStudent(demoPeer, true, monitorWall.watchIntervalMs, monitorWall.watchMaxWidth);
+  // 示範者剛被 watch off：以牆目前的節奏重掛監看（牆面持續更新）
+  session?.watchStudent(demoPeer, true, monitorWall?.watchIntervalMs ?? 3000, monitorWall?.watchMaxWidth);
   demoPeer = null;
   document.querySelectorAll('.wall-cell.demoing').forEach(el => el.classList.remove('demoing'));
-  els.btnMonitorWall.textContent = '🖥 監控牆';
   if (demoWasBroadcasting) {
     // 恢復教師廣播（image 模式）：pump 重啟 + 重發 broadcast on
     const resumed = session?.resumeTeacherPump() ?? false;
@@ -1703,11 +1625,8 @@ function toggleBoardMode(): void {
   }
   boardModeOn = !boardModeOn;
   if (boardModeOn) {
-    // 白板全螢幕時監控牆/廣播流量只是背景負擔：自動收掉監控牆釋放頻寬
-    if (monitorWall?.isVisible) {
-      monitorWall.hide();
-      log('info', '已自動關閉監控牆（白板模式下重新開啟即可）。');
-    }
+    // 白板全螢幕時監控牆的監看只是背景負擔：暫停監看釋放頻寬（離開白板自動恢復）
+    monitorWall?.suspend();
     els.boardLayer.hidden = false;
     // 白板中不可停廣播：ctl 通道斷了白板會失聯，離開白板後再恢復
     els.btnStop.disabled = true;
@@ -1729,6 +1648,7 @@ function toggleBoardMode(): void {
     boardInstance?.setEnabled(false);
     boardInstance?.clear(false);
     session.boardModeAll(false);
+    monitorWall?.resume();
     log('info', '電子白板已關閉，學生機恢復原畫面。');
   }
 }

@@ -5,11 +5,10 @@
  * 節奏越慢、幀越小，見 WALL_PARAMS_FOR_COUNT）。
  * 支援 4／9／16 格分割，格子數量依監看台數自動調整。
  *
- * 整合方式：
+ * 整合方式（內嵌模式：直接住在中欄容器裡，隨名單自動同步）：
  *   import { MonitorWall } from './monitor-wall.js';
- *   const wall = new MonitorWall(container, session);
- *   wall.toggle();          // 開啟／關閉
- *   wall.setStudents(ids);  // 設定監看名單
+ *   const wall = new MonitorWall(container, session, onSnapshot, onControl, onDemo);
+ *   wall.syncStudents();    // 與學生名單同步（學生異動／10 秒定時補看時呼叫）
  */
 
 import { TeacherSession } from '../webrtc/index.js';
@@ -55,25 +54,16 @@ const WALL_PARAMS_FOR_COUNT = (count: number): { intervalMs: number; maxWidth: n
 /** 監控牆容器樣式（注入到 document head） */
 const WALL_STYLE = `
 #monitor-wall {
-  /* fixed 全螢幕覆蓋層：main 已佔滿 body 且 overflow hidden，
-     一般區塊會被擠出視窗外完全看不到 */
-  position: fixed;
-  top: 61px;   /* 避開 topbar（與 .layout 的 calc(100% - 61px) 一致） */
-  left: 0;
-  right: 0;
-  bottom: 0;
-  display: none;
-  grid-template-columns: repeat(4, 1fr);
-  grid-auto-rows: minmax(140px, 1fr);   /* 每格最小高度，否則格子塌縮為 0 */
-  gap: 8px;
-  padding: 8px;
-  background: #0d1117;
-  border-top: 1px solid var(--line);
-  z-index: 500;
-  overflow: auto;
-}
-#monitor-wall.visible {
+  /* 內嵌模式：直接住在中欄「學生機」面板裡（flex column 的子項），
+     永遠顯示——不再有全螢幕覆蓋層與開關按鈕 */
+  flex: 1;
+  min-height: 0;
   display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  grid-auto-rows: minmax(120px, 1fr);   /* 每格最小高度，否則格子塌縮為 0 */
+  gap: 8px;
+  padding: 4px 2px;
+  overflow: auto;
 }
 .wall-cell {
   background: #000;
@@ -115,6 +105,13 @@ const WALL_STYLE = `
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.wall-cell-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 2px 6px 4px;
+  background: rgba(0, 0, 0, 0.45);
+}
 .wall-cell.placeholder {
   display: flex;
   align-items: center;
@@ -132,6 +129,8 @@ class WallCell {
   private readonly img: HTMLImageElement;
   private readonly nameEl: HTMLElement;
   private readonly metaEl: HTMLElement;
+  /** 狀態標籤列（廣播狀態／鎖定／錯誤） */
+  private readonly statusEl: HTMLElement;
   private readonly snapBtn: HTMLButtonElement;
   /** 收藏回調（由 MonitorWall 注入） */
   onSnapshot?: (peerId: string, name: string, blob: Blob) => void;
@@ -169,6 +168,9 @@ class WallCell {
     this.metaEl.className = 'wall-cell-meta';
     this.metaEl.textContent = '等待畫面…';
 
+    this.statusEl = document.createElement('div');
+    this.statusEl.className = 'wall-cell-status';
+
     // 📸 收藏按鈕：hover 格子顯示，點擊收藏當前畫面
     this.snapBtn = document.createElement('button');
     this.snapBtn.type = 'button';
@@ -201,7 +203,9 @@ class WallCell {
       if (this.lastBlob) this.onSnapshot?.(this.peerId, this.studentName, this.lastBlob);
     });
 
-    this.element.append(this.img, this.nameEl, this.metaEl, this.snapBtn, this.controlBtn, this.demoBtn);
+    this.element.append(
+      this.img, this.nameEl, this.metaEl, this.statusEl, this.snapBtn, this.controlBtn, this.demoBtn
+    );
   }
 
   get elementRef(): HTMLElement {
@@ -221,6 +225,11 @@ class WallCell {
     this.element.classList.remove('inactive');
     this.element.classList.add('active');
     this.metaEl.textContent = `第 ${frame.seq} 張 · ${frame.width}×${frame.height}`;
+  }
+
+  /** 狀態標籤（廣播狀態／鎖定／錯誤）——由 bootstrap 的 renderStudents 更新 */
+  setStatus(tags: HTMLElement[]): void {
+    this.statusEl.replaceChildren(...tags);
   }
 
   /** 設定為待機（沒有畫面） */
@@ -261,20 +270,18 @@ export class MonitorWall {
   private readonly container: HTMLElement;
   private readonly session: TeacherSession;
   private readonly cells = new Map<string, WallCell>();
-  private visible = false;
-  private readonly toggleBtn: HTMLButtonElement;
+  /** 已成功送出 watch 的台（ctl 未開時 watchStudent 回 false，由 syncStudents 補看） */
+  private readonly watched = new Set<string>();
+  /** 暫停監看中（接管／白板模式釋放頻寬）：syncStudents 不動作 */
+  private suspended = false;
   /** 幀逾時檢查：每 10 秒掃一次，20 秒沒收到幀的格子標記為離線 */
   private frameCheckTimer: ReturnType<typeof setInterval> | null = null;
-  /** 回傳要監看的學生 ID 列表（勾選的台優先，否則全部已連線學生機） */
-  private readonly getWatchTargets: () => string[];
   /** 📸 收藏回調：peerId、學生名、當前幀 Blob */
   private readonly onSnapshot: (peerId: string, name: string, blob: Blob) => void;
   /** 🎮 接管回調：peerId、學生名 */
   private readonly onControl: (peerId: string, name: string) => void;
   /** 📢 示範回調：peerId、學生名（把這台的畫面轉發給全班） */
   private readonly onDemo: (peerId: string, name: string) => void;
-  /** 監控牆顯示／隱藏時同步視窗全螢幕 */
-  private readonly onVisibilityChange: (visible: boolean) => void;
   /** 目前這面牆的送圖節奏（示範結束後重掛示範者時沿用） */
   private currentIntervalMs = 3000;
   /** 目前這面牆要求的幀寬上限（同上） */
@@ -283,127 +290,118 @@ export class MonitorWall {
   constructor(
     container: HTMLElement,
     session: TeacherSession,
-    toggleBtn: HTMLButtonElement,
-    getWatchTargets: () => string[],
     onSnapshot: (peerId: string, name: string, blob: Blob) => void,
     onControl: (peerId: string, name: string) => void,
-    onVisibilityChange: (visible: boolean) => void,
     onDemo: (peerId: string, name: string) => void
   ) {
     this.container = container;
     this.session = session;
-    this.toggleBtn = toggleBtn;
     this.onSnapshot = onSnapshot;
     this.onControl = onControl;
-    this.onVisibilityChange = onVisibilityChange;
     this.onDemo = onDemo;
-    this.getWatchTargets = getWatchTargets;
 
-    // 注入樣式
-    const styleEl = document.createElement('style');
-    styleEl.textContent = WALL_STYLE;
-    document.head.appendChild(styleEl);
+    // 注入樣式（連線會重建實例：以 id 檢查避免 style 標籤累積）
+    if (!document.getElementById('monitor-wall-style')) {
+      const styleEl = document.createElement('style');
+      styleEl.id = 'monitor-wall-style';
+      styleEl.textContent = WALL_STYLE;
+      document.head.appendChild(styleEl);
+    }
 
-    // 初始隱藏
-    this.container.hidden = true;
-
-    // 綁定開關按鈕
-    this.toggleBtn.addEventListener('click', () => this.toggle());
-
-    // 幀逾時檢查（監控牆開啟期間持續運作，學生機離線的格子會標「訊號中斷」）
+    // 幀逾時檢查（持續運作，學生機離線的格子會標「訊號中斷」）
     this.frameCheckTimer = setInterval(() => this.checkFrameTimeouts(), 10_000);
-
-    // 監看幀回調：由 session 傳入
-    // 注意：session 的 onWatchFrame 已在 bootstrap 設定，
-    // 這裡我們透過 session 取得 currently watching 的 peerId 來決定顯示哪些格子
   }
 
-  /** 開啟／關閉監控牆 */
-  toggle(): void {
-    if (this.visible) {
-      this.hide();
-    } else {
-      this.show(this.getWatchTargets());
-    }
-  }
-
-  /** 顯示監控牆並開始監看指定學生 */
-  show(peerIds?: string[]): void {
-    const targets = peerIds ?? [];
-    if (targets.length === 0) {
-      this.log('warn', '沒有可監看的學生機：請等學生機連線（控制通道連上即可）。');
-      return;
-    }
-    this.setStudents(targets);
-    this.container.hidden = false;
-    this.container.classList.add('visible');
-    this.visible = true;
-    this.toggleBtn.textContent = '✕ 隱藏監控牆';
-    this.toggleBtn.classList.add('danger');
-    this.renderGrid();
-    this.log('info', `監控牆已開啟，監看 ${this.cells.size} 台`);
-    this.onVisibilityChange(true);
-  }
-
-  /** 隱藏監控牆並停止所有監看 */
-  hide(): void {
-    this.session.unwatchAllStudents();
-    // 清空所有格子：不留殘留舊資料，下次開啟乾淨重建
-    this.cells.forEach(cell => cell.remove());
-    this.cells.clear();
-    this.container.hidden = true;
-    this.container.classList.remove('visible');
-    this.visible = false;
-    this.toggleBtn.textContent = '🖥 監控牆';
-    this.toggleBtn.classList.remove('danger');
-    this.log('info', '監控牆已關閉');
-    this.onVisibilityChange(false);
-  }
-
-  /** 設定監看名單（會立即開始監看這些學生） */
-  setStudents(peerIds: string[]): void {
-    // 先停止所有舊的監看，並清空格子與容器（不留殘留舊資料）
-    this.session.unwatchAllStudents();
-    this.cells.forEach(cell => cell.remove());
-    this.cells.clear();
-    this.container.replaceChildren();
-
-    // 只為 ctl 通道已連線的台建立格子：
-    // 離線機建了格子也不會有影像，只會累積出一堆空格。
-    const connected = new Set(this.session.getConnectedStudentIds());
-    const watchable = peerIds.filter(id => connected.has(id));
-    const skipped = peerIds.length - watchable.length;
-    if (skipped > 0) {
-      this.log('warn', `${skipped} 台控制通道未連線，已從監控牆排除。`);
-    }
-
-    // 建立新格子並開始監看
+  /**
+   * 與目前學生名單同步（內嵌牆永遠顯示，不需開關）：
+   * 新連上的台建立格子並開始監看；離線的台收掉格子；
+   * ctl 尚未開的台 watchStudent 回 false，由下次 sync 補看
+   * （學生加入後 ctl 協商需 1~2 秒，bootstrap 每 10 秒定期 sync 補上）。
+   */
+  syncStudents(): void {
+    if (this.suspended || !this.session.isConnected) return;
     const students = this.session.students();
-    for (const peerId of watchable) {
-      const name = students.find(s => s.info.id === peerId)?.info.name ?? peerId;
-      const cell = new WallCell(peerId, name);
-      cell.onSnapshot = (pid, nm, blob) => this.onSnapshot(pid, nm, blob);
-      cell.onControl = (pid, nm) => this.onControl(pid, nm);
-      cell.onDemo = (pid, nm) => this.onDemo(pid, nm);
-      this.cells.set(peerId, cell);
-      this.container.appendChild(cell.elementRef);
+    const connected = new Set(this.session.getConnectedStudentIds());
+    const targets = students.map(s => s.info.id).filter(id => connected.has(id));
+
+    // 收掉已離線的格子
+    for (const [id, cell] of [...this.cells]) {
+      if (!connected.has(id)) {
+        this.session.watchStudent(id, false);
+        cell.remove();
+        this.cells.delete(id);
+        this.watched.delete(id);
+      }
     }
 
     // 台數越多節奏越慢、幀越小（見 WALL_PARAMS_FOR_COUNT 的頻寬估算）；
-    // 學生端會再錯開各自的取樣相位，N 台的幀不會同一拍湧入。
-    const params = WALL_PARAMS_FOR_COUNT(watchable.length);
-    this.currentIntervalMs = params.intervalMs;
-    this.currentMaxWidth = params.maxWidth;
-    if (watchable.length > 0) {
-      this.session.watchStudents(watchable, params.intervalMs, params.maxWidth);
+    // 跨過檔位（4/9/16 台）時全部重掛，讓新節奏生效。
+    const params = WALL_PARAMS_FOR_COUNT(targets.length);
+    if (params.intervalMs !== this.currentIntervalMs || params.maxWidth !== this.currentMaxWidth) {
+      this.session.unwatchAllStudents();
+      this.watched.clear();
+      this.currentIntervalMs = params.intervalMs;
+      this.currentMaxWidth = params.maxWidth;
+      this.log('info', `監看節奏調整：每 ${Math.round(params.intervalMs / 1000)} 秒/張（${targets.length} 台）`);
+    }
+
+    // 建立新格子＋開始／補看：成功才記 watched，失敗（ctl 未開）由下次 sync 補看
+    for (const peerId of targets) {
+      if (!this.cells.has(peerId)) {
+        const name = students.find(s => s.info.id === peerId)?.info.name ?? peerId;
+        const cell = new WallCell(peerId, name);
+        cell.onSnapshot = (pid, nm, blob) => this.onSnapshot(pid, nm, blob);
+        cell.onControl = (pid, nm) => this.onControl(pid, nm);
+        cell.onDemo = (pid, nm) => this.onDemo(pid, nm);
+        this.cells.set(peerId, cell);
+        this.container.appendChild(cell.elementRef);
+      }
+      if (!this.watched.has(peerId)) {
+        if (this.session.watchStudent(peerId, true, this.currentIntervalMs, this.currentMaxWidth)) {
+          this.watched.add(peerId);
+        }
+      }
     }
 
     this.renderGrid();
+  }
+
+  /** 全部收掉（斷線用）：停止監看、清空格子 */
+  reset(): void {
+    this.session.unwatchAllStudents();
+    this.cells.forEach(cell => cell.remove());
+    this.cells.clear();
+    this.watched.clear();
+    this.suspended = false;
+    this.renderGrid();
+  }
+
+  /** 暫停監看但保留格子（接管／白板模式釋放頻寬用） */
+  suspend(): void {
+    this.session.unwatchAllStudents();
+    this.watched.clear();
+    this.suspended = true;
+    this.cells.forEach(cell => cell.setIdle());
+  }
+
+  /** 恢復監看（依目前名單重新掛起） */
+  resume(): void {
+    this.suspended = false;
+    this.syncStudents();
+  }
+
+  /** 釋放資源（斷線後實例不再使用）：停止定時器並清空格子 */
+  dispose(): void {
+    if (this.frameCheckTimer !== null) {
+      clearInterval(this.frameCheckTimer);
+      this.frameCheckTimer = null;
+    }
+    this.reset();
   }
 
   /** 逾時檢查：20 秒沒收到幀的格子標記為「訊號中斷」 */
   private checkFrameTimeouts(): void {
-    if (!this.visible) return;
+    if (this.cells.size === 0) return;
     const now = Date.now();
     for (const cell of this.cells.values()) {
       if (cell.lastFrameAt > 0 && now - cell.lastFrameAt > 20_000) {
@@ -432,15 +430,15 @@ export class MonitorWall {
     this.container.style.gridTemplateColumns = 'repeat(6, 1fr)';
   }
 
-  /** 處理收到的監看幀 */
+  /** 處理收到的監看幀；回傳是否有格子消費（false = 呼叫端應 revoke URL 免得洩漏） */
   handleWatchFrame(
     peerId: string,
     frame: { url: string; width: number; height: number; seq: number; blob: Blob }
-  ): void {
+  ): boolean {
     const cell = this.cells.get(peerId);
-    if (cell) {
-      cell.updateFrame(frame);
-    }
+    if (!cell) return false;
+    cell.updateFrame(frame);
+    return true;
   }
 
   private log(level: 'info' | 'warn' | 'error', message: string): void {
@@ -451,10 +449,6 @@ export class MonitorWall {
     window.dispatchEvent(event);
   }
 
-  get isVisible(): boolean {
-    return this.visible;
-  }
-
   /** 目前牆的送圖間隔（示範結束後要把示範者重掛回牆的節奏用） */
   get watchIntervalMs(): number {
     return this.currentIntervalMs;
@@ -463,5 +457,10 @@ export class MonitorWall {
   /** 目前牆要求的幀寬上限（同上） */
   get watchMaxWidth(): number {
     return this.currentMaxWidth;
+  }
+
+  /** 更新某台的狀態標籤（廣播狀態／鎖定／錯誤；沒有格子時忽略） */
+  setStatus(peerId: string, tags: HTMLElement[]): void {
+    this.cells.get(peerId)?.setStatus(tags);
   }
 }

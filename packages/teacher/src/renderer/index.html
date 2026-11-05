@@ -37,8 +37,6 @@
         <span id="status-text">未連線</span>
       </div>
 
-      <!-- 監控牆開關：放在頂部工具列右側 -->
-      <button id="btn-monitor-wall" class="btn ghost" title="多螢幕監控牆">🖥 監控牆</button>
       <!-- 電子白板：全螢幕白底書寫，筆跡同步學生機（連線中即可用） -->
       <button id="btn-board-mode" class="btn ghost" title="全螢幕電子白板">📝 電子白板</button>
       <button id="btn-snapshots" class="btn ghost" title="開啟截圖收藏資料夾">📁 收藏夾</button>
@@ -134,7 +132,8 @@
           </button>
         </div>
 
-        <div id="student-grid" class="grid"></div>
+        <!-- 內嵌監控牆：中欄就是監控牆（每台一格，📸 收藏／🎮 接管／📢 示範） -->
+        <div id="monitor-wall" class="monitor-wall"></div>
         <p id="empty-students" class="empty">尚無學生連線。請學生機輸入相同的班級代碼。</p>
         <p id="scale-hint" class="hint warn" hidden></p>
       </section>
@@ -236,9 +235,6 @@
         </div>
       </section>
     </main>
-
-    <!-- 多螢幕監控牆：開啟時覆蓋顯示多台學生機畫面（每 3 秒一張 JPEG） -->
-    <div id="monitor-wall" class="monitor-wall" hidden></div>
 
     <!-- 獨立電子白板：全螢幕白底，筆跡同步學生機（board-mode） -->
     <div id="board-layer" class="board-layer" hidden>

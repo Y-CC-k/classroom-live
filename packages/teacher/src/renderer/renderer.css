@@ -499,21 +499,6 @@ select:disabled {
   margin-right: 4px;
 }
 
-.card-cam {
-  width: 100%;
-  aspect-ratio: 16 / 9;
-  object-fit: contain;
-  background: #000;
-  border-radius: 6px;
-  border: 1px solid var(--line);
-  display: block;
-}
-
-.card-cam:not([src]),
-.card-cam[src=""] {
-  background: repeating-linear-gradient(45deg, #141a24, #141a24 12px, #10151d 12px, #10151d 24px);
-}
-
 .card .actions {
   display: flex;
   gap: 4px;
