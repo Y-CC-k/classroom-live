@@ -60,6 +60,8 @@ let controllingPeer: string | null = null;
 let demoPeer: string | null = null;
 /** 學生示範啟動前是否正在廣播（結束示範後提示可重開） */
 let demoWasBroadcasting = false;
+const watchedSet = new Set<string>();
+const cardCamUrls = new Map<string, string>();
 let demoFirstFrameLogged = false;
 let controlImgUrl: string | null = null;
 
@@ -668,6 +670,25 @@ async function applyScene(scene: 'teach' | 'learn'): Promise<void> {
   renderStudents();
 }
 
+function ensureWatching(): void {
+  if (!session?.isConnected) return;
+  for (const student of session.students()) {
+    const id = student.info.id;
+    if (!watchedSet.has(id)) {
+      session.watchStudent(id, true, 3000);
+      watchedSet.add(id);
+    }
+  }
+  const online = new Set(session.students().map(s => s.info.id));
+  for (const id of [...watchedSet]) {
+    if (!online.has(id)) {
+      watchedSet.delete(id);
+      const old = cardCamUrls.get(id);
+      if (old) { URL.revokeObjectURL(old); cardCamUrls.delete(id); }
+    }
+  }
+}
+
 function renderStudents(): void {
   const students = session?.students() ?? [];
   els.studentCount.textContent = String(students.length);
@@ -706,6 +727,10 @@ function renderStudents(): void {
     card.className = 'card';
 
     const peerId = student.info.id;
+    const cam = document.createElement('img');
+    cam.className = 'card-cam';
+    cam.dataset.peerId = peerId;
+    cam.alt = student.info.name;
     const pickLine = document.createElement('div');
     pickLine.className = 'pick-line';
     const name = document.createElement('div');
@@ -731,7 +756,9 @@ function renderStudents(): void {
     if (session?.lockActive) meta.append(tag('已鎖定', 'tag err'));
     if (student.lastError) meta.append(tag(`錯誤：${student.lastError}`, 'tag err'));
 
-    card.append(pickLine, meta);
+    card.append(cam, pickLine, meta);
+    const lastUrl = cardCamUrls.get(peerId);
+    if (lastUrl) cam.src = lastUrl;
     els.studentGrid.append(card);
   }
 }
@@ -838,6 +865,15 @@ async function connect(): Promise<void> {
         els.controlImg.src = frame.url;
         return;
       }
+      const camEl = document.querySelector(
+        '.card-cam[data-peer-id="' + peerId + '"]'
+      ) as HTMLImageElement | null;
+      if (camEl) {
+        const old = cardCamUrls.get(peerId);
+        if (old) URL.revokeObjectURL(old);
+        cardCamUrls.set(peerId, frame.url);
+        camEl.src = frame.url;
+      }
       if (monitorWall?.isVisible) monitorWall.handleWatchFrame(peerId, frame);
       else URL.revokeObjectURL(frame.url);
     },
@@ -858,11 +894,13 @@ async function connect(): Promise<void> {
     },
     onStudentsChanged: () => {
       renderStudents();
+      ensureWatching();
     },
     onLog: (level, message) => log(level, message),
   });
 
   session.connect();
+  watchedSet.clear();
   els.btnConnect.textContent = '斷線';
   els.btnStart.disabled = false;
 
