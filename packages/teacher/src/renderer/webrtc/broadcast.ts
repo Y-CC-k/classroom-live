@@ -476,6 +476,7 @@ export class BroadcastManager {
       if (parsed.t === 'hand-raise') {
         // 「學習操作模式」＝未廣播＋未鎖定＋未靜音（教學活動進行中不回應舉手）
         const learning = !this.getLocalStream() && !this.lockOn && !this.muteOn;
+        this.options.onLog('info', `[hand] signal on=${parsed.on} learning=${learning} from ${link.state.info.name}`);
         if (learning && parsed.on) {
           this.options.onLog('hand', `🙋 舉手：${link.state.info.name}`);
         } else if (learning && !parsed.on) {

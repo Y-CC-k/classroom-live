@@ -934,6 +934,9 @@ select:disabled {
 
 
 /* ============ wall cell buttons (unified) ============ */
+
+
+/* ============ wall cell buttons (single unified set) ============ */
 .wall-cell-snap,
 .wall-cell-control,
 .wall-cell-demo {
