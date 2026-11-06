@@ -44,7 +44,7 @@ function applyAutoStart(enabled: boolean): void {
   try {
     app.setLoginItemSettings({
       openAtLogin: enabled,
-      args: [],
+      args: ['--tray'],
     });
     console.log(`[autostart] 登入自動啟動：${enabled ? '已啟用' : '已停用'}`);
   } catch (error) {
@@ -72,7 +72,17 @@ export function createWindow(deps: WindowManagerDeps): BrowserWindow {
     },
   });
 
-  window.once('ready-to-show', () => window.show());
+  // 登入自動啟動（--tray）時不顯示視窗：學生機開機不佔畫面（否則是一個
+  // 深色大視窗蓋住桌面＝「開機一片黑」），縮在系統匣待命；
+  // 教師開始廣播時 broadcast-enforcer 會自動彈出並全螢幕。
+  const startHidden = process.argv.includes('--tray') || process.argv.includes('--hidden');
+  window.once('ready-to-show', () => {
+    if (startHidden) {
+      console.log('[window] --tray 啟動：隱藏在系統匣待命（廣播開始時自動全螢幕彈出）');
+    } else {
+      window.show();
+    }
+  });
 
   deps.enforcer.configure(window, line => console.log(line));
 

@@ -1231,6 +1231,11 @@ async function handleControl(raw: unknown): Promise<void> {
       // 廣播強制模式：置頂＋全螢幕（靜音／關網頁已改為教師端獨立按鍵）
       broadcastActive = on;
       void window.studentApi.setBroadcastMode(on);
+      // 廣播結束且沒有鎖定／白板：縮回系統匣，把桌面還給學生
+      //（廣播再開始時 enforcer 會自動全螢幕彈出）
+      if (!on && !inputLocked && els.boardLayer.hidden) {
+        window.studentApi.hideToTray();
+      }
       break;
     }
 
@@ -1738,6 +1743,8 @@ setInterval(() => {
   void window.studentApi.setMuted(false);
   showBroadcast(false, broadcastMode);
   setIdle('教師可能已離線', '（心跳逾時）已自動解除鎖定、靜音與廣播；教師重新上線後會恢復。');
+  // 桌面還給學生：解除後視窗縮回系統匣（教師回來廣播會自動彈出）
+  window.studentApi.hideToTray();
 }, 3000);
 
 async function boot(): Promise<void> {

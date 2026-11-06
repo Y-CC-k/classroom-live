@@ -1400,6 +1400,10 @@ function bindEvents(): void {
       stopDemo();
       return;
     }
+    if (e.key === 'Escape' && monitorWall?.isFocused()) {
+      monitorWall.unfocus();
+      return;
+    }
     if (!controllingPeer) return;
     if (e.key === 'Escape') {
       exitControl();
@@ -1585,8 +1589,8 @@ function stopDemo(): void {
   const name = session?.students().find(s => s.info.id === demoPeer)?.info.name ?? demoPeer;
   session?.watchStudent(demoPeer, false);
   session?.demoBroadcast(false, demoPeer);
-  // 示範者剛被 watch off：以牆目前的節奏重掛監看（牆面持續更新）
-  session?.watchStudent(demoPeer, true, monitorWall?.watchIntervalMs ?? 3000, monitorWall?.watchMaxWidth);
+  // 示範者剛被 watch off：以該台目前應有的節奏重掛監看（牆面持續更新）
+  monitorWall?.rehang(demoPeer);
   demoPeer = null;
   document.querySelectorAll('.wall-cell.demoing').forEach(el => el.classList.remove('demoing'));
   if (demoWasBroadcasting) {

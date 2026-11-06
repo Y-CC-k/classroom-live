@@ -356,6 +356,7 @@ export class MonitorWall {
         cell.remove();
         this.cells.delete(id);
         this.watched.delete(id);
+        if (this.focusedPeer === id) this.focusedPeer = null;
       }
     }
 
@@ -379,7 +380,7 @@ export class MonitorWall {
         cell.onControl = (pid, nm) => this.onControl(pid, nm);
         cell.onDemo = (pid, nm) => this.onDemo(pid, nm);
         cell.onFocusToggle = pid => this.focus(pid);
-        cell.setFocused(pid === this.focusedPeer);
+        cell.setFocused(peerId === this.focusedPeer);
         this.cells.set(peerId, cell);
         this.container.appendChild(cell.elementRef);
       }
@@ -388,6 +389,11 @@ export class MonitorWall {
           this.watched.add(peerId);
         }
       }
+    }
+
+    // 放大的台維持高解析（跨檔位全部重掛後需重新套用）
+    if (this.focusedPeer && this.cells.has(this.focusedPeer)) {
+      this.session.watchStudent(this.focusedPeer, true, FOCUS_INTERVAL_MS, FOCUS_MAX_WIDTH);
     }
 
     this.renderGrid();
@@ -400,6 +406,7 @@ export class MonitorWall {
     this.cells.clear();
     this.watched.clear();
     this.suspended = false;
+    this.focusedPeer = null;
     this.renderGrid();
   }
 
@@ -424,6 +431,43 @@ export class MonitorWall {
       this.frameCheckTimer = null;
     }
     this.reset();
+  }
+
+  /** 點選格子放大：960×540 高解析＋快節奏；再點同一格還原 */
+  focus(peerId: string): void {
+    if (this.focusedPeer === peerId) {
+      this.unfocus();
+      return;
+    }
+    if (this.focusedPeer) this.unfocus();
+    const cell = this.cells.get(peerId);
+    if (!cell) return;
+    this.focusedPeer = peerId;
+    cell.setFocused(true);
+    this.session.watchStudent(peerId, true, FOCUS_INTERVAL_MS, FOCUS_MAX_WIDTH);
+    this.log('info', `已放大監看 ${peerId}（960×540、每 1.5 秒一張）；再點一次或按 Esc 還原。`);
+  }
+
+  /** 還原放大的台：回牆的節奏 */
+  unfocus(): void {
+    const peer = this.focusedPeer;
+    if (!peer) return;
+    this.focusedPeer = null;
+    this.cells.get(peer)?.setFocused(false);
+    if (this.cells.has(peer)) this.rehang(peer);
+  }
+
+  isFocused(): boolean {
+    return this.focusedPeer !== null;
+  }
+
+  /** 以該台目前應有的節奏重掛監看（示範結束等場景用） */
+  rehang(peerId: string): void {
+    if (peerId === this.focusedPeer) {
+      this.session.watchStudent(peerId, true, FOCUS_INTERVAL_MS, FOCUS_MAX_WIDTH);
+    } else {
+      this.session.watchStudent(peerId, true, this.currentIntervalMs, this.currentMaxWidth);
+    }
   }
 
   /** 逾時檢查：20 秒沒收到幀的格子標記為「訊號中斷」 */
