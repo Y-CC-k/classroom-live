@@ -121,7 +121,8 @@ class WallCell {
   private readonly peerId: string;
   private readonly studentName: string;
   private readonly element: HTMLElement;
-  private readonly img: HTMLImageElement;
+  private readonly imgA: HTMLImageElement;
+  private readonly imgB: HTMLImageElement;
   private readonly nameEl: HTMLElement;
   private readonly metaEl: HTMLElement;
   /** 狀態標籤列（廣播狀態／鎖定／錯誤） */
@@ -144,6 +145,10 @@ class WallCell {
   lastBlob: Blob | null = null;
   /** 最後一次收到幀的時間（0 = 從未收到）；逾時未更新視為離線 */
   lastFrameAt = 0;
+  /** 雙緩衝圖片：imgA 主顯示、imgB 預載備援，交替顯示避免換圖黑閃 */
+  private showingA = true; // true = imgA 在顯示
+  private urlA: string | null = null;
+  private urlB: string | null = null;
 
   constructor(peerId: string, studentName: string) {
     this.peerId = peerId;
@@ -153,10 +158,15 @@ class WallCell {
     this.element.className = 'wall-cell inactive';
     this.element.dataset.peerId = peerId;
 
-    this.img = document.createElement('img');
-    this.img.alt = studentName;
+    this.imgA = document.createElement('img');
+    this.imgA.alt = studentName;
     // 非同步解碼：幀到達時不阻塞主執行緒（台數多時一次解碼多張會卡 UI）
-    this.img.decoding = 'async';
+    this.imgA.decoding = 'async';
+    // 雙緩衝備援圖：預載下一張，load 完成後再與 imgA 交換顯示，永不讓畫面空出
+    this.imgB = document.createElement('img');
+    this.imgB.alt = studentName;
+    this.imgB.decoding = 'async';
+    this.imgB.hidden = true;
 
     this.nameEl = document.createElement('div');
     this.nameEl.className = 'wall-cell-name';
@@ -207,7 +217,7 @@ class WallCell {
     });
 
     this.element.append(
-      this.img, this.nameEl, this.metaEl, this.statusEl, this.snapBtn, this.controlBtn, this.demoBtn
+      this.imgA, this.imgB, this.nameEl, this.metaEl, this.statusEl, this.snapBtn, this.controlBtn, this.demoBtn
     );
   }
 
@@ -215,7 +225,8 @@ class WallCell {
     return this.element;
   }
 
-  /** 更新畫面（來自 onWatchFrame 回調）：預先載入新幀後再切換，避免 src 直接替換時的黑閃 */
+  /** 更新畫面（來自 onWatchFrame 回調）：雙緩衝 img 交替顯示，
+     永遠有一張已載好的圖在畫面上，新圖載完再切換，徹底消除換圖黑閃 */
   updateFrame(frame: { url: string; width: number; height: number; seq: number; blob: Blob }): void {
     // 同樣的 seq 不重複刷新：blob URL 即使不同，畫面內容一樣，強制換 src 只會造成解碼閃爍
     if (frame.seq === this.lastSeq) return;
@@ -225,23 +236,25 @@ class WallCell {
     this.element.classList.remove('inactive');
     this.element.classList.add('active');
     this.metaEl.textContent = `第 ${frame.seq} 張 · ${frame.width}×${frame.height}`;
-    // 預載新幀：load 完成後再切換 src，舊圖持續顯示直到新圖就緒，中間不黑
-    const pre = new Image();
-    pre.decoding = 'async';
-    pre.onload = () => {
-      const old = this.currentUrl;
-      this.currentUrl = frame.url;
-      this.img.src = frame.url;
-      if (old) URL.revokeObjectURL(old);
+
+    const visible = this.showingA ? this.imgA : this.imgB;
+    const standby = this.showingA ? this.imgB : this.imgA;
+    const visibleUrl = this.showingA ? this.urlA : this.urlB;
+
+    // 先把新幀載入備援（隱藏）的 img；load 完成後再與可見的交換，舊圖持續顯示直到新圖就緒
+    standby.src = frame.url;
+    if (this.showingA) this.urlB = frame.url; else this.urlA = frame.url;
+
+    const finish = () => {
+      standby.hidden = false;
+      visible.hidden = true;
+      this.showingA = !this.showingA;
+      if (visibleUrl) URL.revokeObjectURL(visibleUrl);
+      standby.onload = null;
+      standby.onerror = null;
     };
-    pre.onerror = () => {
-      // 預載失敗時直接指派，讓錯誤可見而非永遠卡舊畫面
-      const old = this.currentUrl;
-      this.currentUrl = frame.url;
-      this.img.src = frame.url;
-      if (old) URL.revokeObjectURL(old);
-    };
-    pre.src = frame.url;
+    standby.onload = finish;
+    standby.onerror = finish;
   }
 
   /** 狀態標籤（廣播狀態／鎖定／錯誤）——由 bootstrap 的 renderStudents 更新 */
@@ -252,30 +265,28 @@ class WallCell {
   /** 放大／還原的顯示狀態（格線跨 2×2＋高亮＋提示文字） */
   setFocused(on: boolean): void {
     this.element.classList.toggle('focused', on);
-    this.element.title = on ? '點擊還原成牆的節奏' : '點擊放大監看（960×540）';
+    this.element.title = on ? '點擊還原成牆的節奏' : '點擊放大監看（1920×1080）';
   }
 
   /** 設定為待機（沒有畫面） */
   setIdle(): void {
     this.lastBlob = null;
-    this.img.src = '';
+    this.imgA.src = '';
+    this.imgB.src = '';
     this.element.classList.remove('active');
     this.element.classList.add('inactive');
     this.metaEl.textContent = '未監看';
-    if (this.currentUrl) {
-      URL.revokeObjectURL(this.currentUrl);
-      this.currentUrl = null;
-    }
+    if (this.urlA) { URL.revokeObjectURL(this.urlA); this.urlA = null; }
+    if (this.urlB) { URL.revokeObjectURL(this.urlB); this.urlB = null; }
   }
 
   /** 標記為離線（逾時未收到幀）：灰底＋明確文字，不再像是「應該有影像」 */
   markOffline(): void {
     this.lastBlob = null;
-    if (this.currentUrl) {
-      URL.revokeObjectURL(this.currentUrl);
-      this.currentUrl = null;
-    }
-    this.img.src = '';
+    if (this.urlA) { URL.revokeObjectURL(this.urlA); this.urlA = null; }
+    if (this.urlB) { URL.revokeObjectURL(this.urlB); this.urlB = null; }
+    this.imgA.src = '';
+    this.imgB.src = '';
     this.element.classList.remove('active');
     this.element.classList.add('inactive');
     this.metaEl.textContent = '訊號中斷';
