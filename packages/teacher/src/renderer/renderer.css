@@ -838,19 +838,7 @@ select:disabled {
   font-weight: 700;
 }
 
-/* ───────────── 多螢幕監控牆（內嵌中欄；與注入版 WALL_STYLE 一致） ───────────── */
-/* 注意：不可用 position:fixed／背景色——牆現在常駐中欄，
-   舊的全螢幕覆蓋樣式會讓空牆永遠蓋住整個視窗（開軟體一片黑）。 */
-.monitor-wall {
-  flex: 1;
-  min-height: 0;
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  grid-auto-rows: minmax(120px, 1fr);
-  gap: 8px;
-  padding: 4px 2px;
-  overflow: auto;
-}
+/* ───────────── 多螢幕監控牆（容器樣式由 monitor-wall.ts 的 WALL_STYLE 注入；格子樣式如下） ───────────── */
 
 .wall-cell {
   position: relative; /* 📸/🎮/📢 按鈕的定位基準：讓每格按鈕各歸各格 */

@@ -13,61 +13,45 @@
 
 import { TeacherSession } from '../webrtc/index.js';
 
-/** 監控牆格子數對應的 CSS grid 欄數 */
-const COLUMNS_FOR_COUNT: Record<number, string> = {
-  1: '1fr',
-  2: '1fr 1fr',
-  3: '1fr 1fr 1fr',
-  4: '1fr 1fr 1fr 1fr',
-  5: '1fr 1fr 1fr 1fr 1fr',
-  6: '1fr 1fr 1fr 1fr 1fr 1fr',
-  7: 'repeat(4, 1fr)',
-  8: 'repeat(4, 1fr)',
-  9: 'repeat(3, 1fr)',
-  10: 'repeat(5, 1fr)',
-  11: 'repeat(5, 1fr)',
-  12: 'repeat(6, 1fr)',
-  13: 'repeat(6, 1fr)',
-  14: 'repeat(6, 1fr)',
-  15: 'repeat(5, 1fr)',
-  16: 'repeat(4, 1fr)',
-};
-
 /**
  * 依監看台數決定送圖節奏與幀寬上限。
  *
- * 內嵌在中欄的格子實際只有 200–400px 寬，收大圖是純浪費：預設一律
- * 壓在 480–640px（點選單格放大時才升到 960，見 FOCUS_MAX_WIDTH），
- * 間隔隨台數放寬，把「每秒湧入的張數×位元組」壓在教室網路舒服的範圍。
+ * 格子固定小尺寸（約 288px 寬，見 WALL_STYLE）：320px 幀（約 5–8KB/張）
+ * 已足夠縮圖顯示；間隔隨台數放寬，把「每秒湧入的張數×位元組」壓在
+ * 教室網路舒服的範圍。點選單格放大時才升到 960（見 FOCUS_MAX_WIDTH）。
  *
- * 頻寬估算（480px、q0.62 一張約 10–20KB）：
- *   16 台 × 4 秒 ≈ 60–80 KB/s（約 0.6 Mbps）
- *   30 台 × 5 秒 ≈ 60–120 KB/s（約 1 Mbps）
+ * 頻寬估算（320px、q0.62 一張約 5–8KB）：
+ *   16 台 × 4 秒 ≈ 20–32 KB/s（約 0.25 Mbps）
+ *   30 台 × 5 秒 ≈ 30–48 KB/s（約 0.4 Mbps）
  */
 const WALL_PARAMS_FOR_COUNT = (count: number): { intervalMs: number; maxWidth: number } => {
-  if (count <= 4) return { intervalMs: 3000, maxWidth: 640 };
-  if (count <= 9) return { intervalMs: 3500, maxWidth: 480 };
-  if (count <= 16) return { intervalMs: 4000, maxWidth: 480 };
-  return { intervalMs: 5000, maxWidth: 480 };
+  if (count <= 4) return { intervalMs: 3000, maxWidth: 320 };
+  if (count <= 9) return { intervalMs: 3500, maxWidth: 320 };
+  if (count <= 16) return { intervalMs: 4000, maxWidth: 320 };
+  return { intervalMs: 5000, maxWidth: 320 };
 };
 
 /** 點選格子放大監看：高解析（16:9 → 約 960×540）＋快節奏 */
 const FOCUS_INTERVAL_MS = 1500;
-const FOCUS_MAX_WIDTH = 960;
+const FOCUS_MAX_WIDTH = 1920;
 
 /** 監控牆容器樣式（注入到 document head） */
 const WALL_STYLE = `
 #monitor-wall {
   /* 內嵌模式：直接住在中欄「學生機」面板裡（flex column 的子項），
-     永遠顯示——不再有全螢幕覆蓋層與開關按鈕 */
+     永遠顯示——不再有全螢幕覆蓋層與開關按鈕。
+     每列固定 6 張：卡片寬度隨視窗自適應（約視窗寬÷6），不隨台數改變欄數；
+     格子等高，圖片用 object-fit contain 居中顯示。
+     點選單格放大時跨 2×2（見 setFocused）。 */
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  grid-auto-rows: minmax(120px, 1fr);   /* 每格最小高度，否則格子塌縮為 0 */
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-auto-rows: 1fr;
   gap: 8px;
   padding: 4px 2px;
   overflow: auto;
+  align-content: start;
 }
 .wall-cell {
   background: #000;
@@ -154,6 +138,8 @@ class WallCell {
   /** 點擊格子（不含按鈕）：放大／還原監看（由 MonitorWall 注入） */
   onFocusToggle?: (peerId: string) => void;
   private currentUrl: string | null = null;
+  /** 最後顯示的幀 seq：相同 seq 不重複切換 src，避免解碼閃爍 */
+  private lastSeq = -1;
   /** 最後一幀的 Blob（📸 收藏用） */
   lastBlob: Blob | null = null;
   /** 最後一次收到幀的時間（0 = 從未收到）；逾時未更新視為離線 */
@@ -229,19 +215,33 @@ class WallCell {
     return this.element;
   }
 
-  /** 更新畫面（來自 onWatchFrame 回調） */
+  /** 更新畫面（來自 onWatchFrame 回調）：預先載入新幀後再切換，避免 src 直接替換時的黑閃 */
   updateFrame(frame: { url: string; width: number; height: number; seq: number; blob: Blob }): void {
+    // 同樣的 seq 不重複刷新：blob URL 即使不同，畫面內容一樣，強制換 src 只會造成解碼閃爍
+    if (frame.seq === this.lastSeq) return;
+    this.lastSeq = frame.seq;
     this.lastBlob = frame.blob;
-    // 釋放舊的 blob URL
-    if (this.currentUrl) {
-      URL.revokeObjectURL(this.currentUrl);
-    }
-    this.currentUrl = frame.url;
     this.lastFrameAt = Date.now();
-    this.img.src = frame.url;
     this.element.classList.remove('inactive');
     this.element.classList.add('active');
     this.metaEl.textContent = `第 ${frame.seq} 張 · ${frame.width}×${frame.height}`;
+    // 預載新幀：load 完成後再切換 src，舊圖持續顯示直到新圖就緒，中間不黑
+    const pre = new Image();
+    pre.decoding = 'async';
+    pre.onload = () => {
+      const old = this.currentUrl;
+      this.currentUrl = frame.url;
+      this.img.src = frame.url;
+      if (old) URL.revokeObjectURL(old);
+    };
+    pre.onerror = () => {
+      // 預載失敗時直接指派，讓錯誤可見而非永遠卡舊畫面
+      const old = this.currentUrl;
+      this.currentUrl = frame.url;
+      this.img.src = frame.url;
+      if (old) URL.revokeObjectURL(old);
+    };
+    pre.src = frame.url;
   }
 
   /** 狀態標籤（廣播狀態／鎖定／錯誤）——由 bootstrap 的 renderStudents 更新 */
@@ -332,6 +332,8 @@ export class MonitorWall {
       styleEl.textContent = WALL_STYLE;
       document.head.appendChild(styleEl);
     }
+    // 清掉舊版可能殘留的行內欄數樣式（欄數現在由 CSS auto-fill 決定）
+    this.container.style.gridTemplateColumns = '';
 
     // 幀逾時檢查（持續運作，學生機離線的格子會標「訊號中斷」）
     this.frameCheckTimer = setInterval(() => this.checkFrameTimeouts(), 10_000);
@@ -395,8 +397,6 @@ export class MonitorWall {
     if (this.focusedPeer && this.cells.has(this.focusedPeer)) {
       this.session.watchStudent(this.focusedPeer, true, FOCUS_INTERVAL_MS, FOCUS_MAX_WIDTH);
     }
-
-    this.renderGrid();
   }
 
   /** 全部收掉（斷線用）：停止監看、清空格子 */
@@ -407,7 +407,6 @@ export class MonitorWall {
     this.watched.clear();
     this.suspended = false;
     this.focusedPeer = null;
-    this.renderGrid();
   }
 
   /** 暫停監看但保留格子（接管／白板模式釋放頻寬用） */
@@ -479,26 +478,6 @@ export class MonitorWall {
         cell.markOffline();
       }
     }
-  }
-
-  /** 根據 cells 數量調整 grid 欄數 */
-  private renderGrid(): void {
-    const count = this.cells.size;
-    if (count === 0) {
-      this.container.style.gridTemplateColumns = '1fr';
-      return;
-    }
-    // 找最接近的欄數（不超過 6）
-    const entries = Object.entries(COLUMNS_FOR_COUNT) as [string, string][];
-    for (const [nStr, template] of entries) {
-      const n = Number(nStr);
-      if (count <= n) {
-        this.container.style.gridTemplateColumns = template;
-        return;
-      }
-    }
-    // 超過 16 台：固定 6 欄
-    this.container.style.gridTemplateColumns = 'repeat(6, 1fr)';
   }
 
   /** 處理收到的監看幀；回傳是否有格子消費（false = 呼叫端應 revoke URL 免得洩漏） */
