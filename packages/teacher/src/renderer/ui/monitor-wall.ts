@@ -36,20 +36,24 @@ const COLUMNS_FOR_COUNT: Record<number, string> = {
 /**
  * 依監看台數決定送圖節奏與幀寬上限。
  *
- * 台數多時延遲的兩個來源：頻寬總量與主執行緒解碼量。牆上格子實際只有
- * 200–500px 寬，收 960px 幀是純浪費；間隔也隨台數放寬，把「每秒湧入的
- * 張數×位元組」壓在教室網路舒服的範圍（配合學生端錯開相位，不會爆量）。
+ * 內嵌在中欄的格子實際只有 200–400px 寬，收大圖是純浪費：預設一律
+ * 壓在 480–640px（點選單格放大時才升到 960，見 FOCUS_MAX_WIDTH），
+ * 間隔隨台數放寬，把「每秒湧入的張數×位元組」壓在教室網路舒服的範圍。
  *
  * 頻寬估算（480px、q0.62 一張約 10–20KB）：
  *   16 台 × 4 秒 ≈ 60–80 KB/s（約 0.6 Mbps）
- *   30 台 × 5 秒 ≈ 60–120 KB/s（約 1 Mbps）——960px/3 秒時是 3+ Mbps
+ *   30 台 × 5 秒 ≈ 60–120 KB/s（約 1 Mbps）
  */
 const WALL_PARAMS_FOR_COUNT = (count: number): { intervalMs: number; maxWidth: number } => {
-  if (count <= 4) return { intervalMs: 3000, maxWidth: 960 }; // 格子大，維持原本的清楚度
-  if (count <= 9) return { intervalMs: 3000, maxWidth: 640 };
+  if (count <= 4) return { intervalMs: 3000, maxWidth: 640 };
+  if (count <= 9) return { intervalMs: 3500, maxWidth: 480 };
   if (count <= 16) return { intervalMs: 4000, maxWidth: 480 };
   return { intervalMs: 5000, maxWidth: 480 };
 };
+
+/** 點選格子放大監看：高解析（16:9 → 約 960×540）＋快節奏 */
+const FOCUS_INTERVAL_MS = 1500;
+const FOCUS_MAX_WIDTH = 960;
 
 /** 監控牆容器樣式（注入到 document head） */
 const WALL_STYLE = `
@@ -112,6 +116,13 @@ const WALL_STYLE = `
   padding: 2px 6px 4px;
   background: rgba(0, 0, 0, 0.45);
 }
+.wall-cell.focused {
+  grid-column: span 2;
+  grid-row: span 2;
+  border-color: var(--ok);
+  box-shadow: 0 0 0 2px var(--ok);
+  z-index: 1;
+}
 .wall-cell.placeholder {
   display: flex;
   align-items: center;
@@ -140,6 +151,8 @@ class WallCell {
   /** 示範回調（由 MonitorWall 注入）：把這台的畫面轉發給全班 */
   onDemo?: (peerId: string, name: string) => void;
   private readonly demoBtn: HTMLButtonElement;
+  /** 點擊格子（不含按鈕）：放大／還原監看（由 MonitorWall 注入） */
+  onFocusToggle?: (peerId: string) => void;
   private currentUrl: string | null = null;
   /** 最後一幀的 Blob（📸 收藏用） */
   lastBlob: Blob | null = null;
@@ -198,6 +211,10 @@ class WallCell {
       e.stopPropagation();
       this.onDemo?.(this.peerId, this.studentName);
     });
+
+    // 點擊格子本體：放大該台（960×540 高解析）；再點一次還原。按鈕已 stopPropagation。
+    this.element.addEventListener('click', () => this.onFocusToggle?.(this.peerId));
+    this.element.title = '點擊放大監看（960×540）';
     this.snapBtn.addEventListener('click', e => {
       e.stopPropagation();
       if (this.lastBlob) this.onSnapshot?.(this.peerId, this.studentName, this.lastBlob);
@@ -230,6 +247,12 @@ class WallCell {
   /** 狀態標籤（廣播狀態／鎖定／錯誤）——由 bootstrap 的 renderStudents 更新 */
   setStatus(tags: HTMLElement[]): void {
     this.statusEl.replaceChildren(...tags);
+  }
+
+  /** 放大／還原的顯示狀態（格線跨 2×2＋高亮＋提示文字） */
+  setFocused(on: boolean): void {
+    this.element.classList.toggle('focused', on);
+    this.element.title = on ? '點擊還原成牆的節奏' : '點擊放大監看（960×540）';
   }
 
   /** 設定為待機（沒有畫面） */
@@ -274,6 +297,8 @@ export class MonitorWall {
   private readonly watched = new Set<string>();
   /** 暫停監看中（接管／白板模式釋放頻寬）：syncStudents 不動作 */
   private suspended = false;
+  /** 目前放大監看的台（點選格子；null = 沒有） */
+  private focusedPeer: string | null = null;
   /** 幀逾時檢查：每 10 秒掃一次，20 秒沒收到幀的格子標記為離線 */
   private frameCheckTimer: ReturnType<typeof setInterval> | null = null;
   /** 📸 收藏回調：peerId、學生名、當前幀 Blob */
@@ -353,6 +378,8 @@ export class MonitorWall {
         cell.onSnapshot = (pid, nm, blob) => this.onSnapshot(pid, nm, blob);
         cell.onControl = (pid, nm) => this.onControl(pid, nm);
         cell.onDemo = (pid, nm) => this.onDemo(pid, nm);
+        cell.onFocusToggle = pid => this.focus(pid);
+        cell.setFocused(pid === this.focusedPeer);
         this.cells.set(peerId, cell);
         this.container.appendChild(cell.elementRef);
       }
