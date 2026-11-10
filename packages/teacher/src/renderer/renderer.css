@@ -841,22 +841,7 @@ select:disabled {
   font-weight: 700;
 }
 
-/* ───────────── 多螢幕監控牆（容器＋格子；樣式曾整段缺失） ───────────── */
-.monitor-wall {
-  position: fixed;
-  inset: 0;
-  z-index: 800;
-  background: #0d1117;
-  display: grid;
-  gap: 10px;
-  padding: 10px;
-  overflow: auto;
-  align-content: start;
-}
-
-.monitor-wall[hidden] {
-  display: none;
-}
+/* ───────────── 多螢幕監控牆（容器樣式由 monitor-wall.ts 的 WALL_STYLE 注入；格子樣式如下） ───────────── */
 
 .wall-cell {
   position: relative; /* 📸/🎮/📢 按鈕的定位基準：讓每格按鈕各歸各格 */
