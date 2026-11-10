@@ -1,6 +1,6 @@
 {
   "name": "@classroom/teacher",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "教師機：螢幕廣播 + 學生監看 + 遠端鍵鼠控制",
   "main": "dist/main/index.cjs",

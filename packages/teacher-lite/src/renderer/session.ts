@@ -99,8 +99,6 @@ export class TeacherSession {
   private readonly links = new Map<string, Link>();
   /** 學生端回報拒收的檔案序號：deliverFiles 在送下一片前先查，直接中止 */
   private readonly fileRejected = new Map<string, Set<string>>();
-  /** 熱更新：各台正在等待寫入完成的升級包檔名；file-result 成功後自動送 apply-update */
-  private readonly upgradePackageNames = new Map<string, string>();
   private selfId: string | null = null;
   private localStream: MediaStream | null = null;
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
@@ -381,13 +379,17 @@ export class TeacherSession {
   /**
    * 對單一台開始／停止監看。
    * 一開始要跟上一台換台也在這裡做（先停舊台，避免兩台同時送圖）。
+   * `maxWidth`/`maxHeight`：要求學生端把幀壓到指定尺寸以內，避免監控牆格子
+   * 太小時截圖解析度過高浪費頻寬，或畫面比例畸形顯示不完整。
    */
-  watchStudent(peerId: string, on: boolean, intervalMs = 3000): boolean {
+  watchStudent(peerId: string, on: boolean, intervalMs = 3000, maxWidth?: number, maxHeight?: number): boolean {
     const link = this.links.get(peerId);
     if (on) {
       if (link?.ctl?.readyState !== 'open') return false;
-      if (!Number.isFinite(intervalMs) || intervalMs < 1000) intervalMs = 1000;
-      this.sendCtl(peerId, { t: 'watch', on: true, intervalMs: Math.round(intervalMs) });
+      if (!Number.isFinite(intervalMs) || intervalMs < 3000) intervalMs = 3000;
+      const width = Number.isFinite(maxWidth) && (maxWidth ?? 0) >= 320 ? Math.round(maxWidth!) : undefined;
+      const height = Number.isFinite(maxHeight) && (maxHeight ?? 0) >= 240 ? Math.round(maxHeight!) : undefined;
+      this.sendCtl(peerId, { t: 'watch', on: true, intervalMs: Math.round(intervalMs), maxWidth: width, maxHeight: height });
       return true;
     }
     if (link?.ctl?.readyState === 'open') {
@@ -597,23 +599,6 @@ export class TeacherSession {
   }
 
   // ─────────────────────────── 檔案傳送 ───────────────────────────
-
-  /**
-   * 熱更新：把升級包（resources\app 的 zip）送給所有已連線學生機。
-   * 送完檔案不直接確認套用——等該台的 file-result 成功回報後再送
-   * `apply-update`，避免「套用時檔案還沒落地」。
-   */
-  sendUpgrade(file: File): number {
-    const queued: string[] = [];
-    for (const [peerId, link] of this.links) {
-      if (link.file && link.file.readyState === 'open') {
-        queued.push(peerId);
-        this.upgradePackageNames.set(peerId, file.name);
-        void this.deliverFiles(peerId, link.file, [file]);
-      }
-    }
-    return queued.length;
-  }
 
   /**
    * 把檔案傳送到所有已連線學生機（落在 config.json 指定的資料夾）。
@@ -928,15 +913,6 @@ export class TeacherSession {
         return;
       }
       if (parsed.t === 'pong') return;
-      if (parsed.t === 'update-result') {
-        const name = this.links.get(peerId)?.state.info.name ?? peerId;
-        if (parsed.ok) {
-          this.options.onLog('info', `${name} 升級套用：${parsed.message ?? '已開始套用'}`);
-        } else {
-          this.options.onLog('warn', `${name} 升級套用被擋：${parsed.message ?? '未知原因'}`);
-        }
-        return;
-      }
       if (parsed.t === 'watch-frame-hdr') {
         if (parsed.size <= 0 || parsed.size > TeacherSession.WATCH_MAX_FRAME_BYTES) return;
         this.watchFrames.set(peerId, {
@@ -970,12 +946,6 @@ export class TeacherSession {
             'info',
             `${link.state.info.name} 已收到 ${parsed.name}${parsed.path ? `，存到 ${parsed.path}` : ''}`
           );
-          // 熱更新：升級包落地的第一時間就通知該台套用
-          if (this.upgradePackageNames.get(peerId) === parsed.name) {
-            this.upgradePackageNames.delete(peerId);
-            this.sendCtl(peerId, { t: 'apply-update' });
-            this.options.onLog('info', `${link.state.info.name} 升級包就緒，已通知套用（本機即將重啟）`);
-          }
         } else {
           // 記下拒收序號：deliverFiles 每送一片前都會檢查並中止
           if (!this.fileRejected.has(peerId)) this.fileRejected.set(peerId, new Set());
@@ -1099,7 +1069,6 @@ export class TeacherSession {
   private teardownLink(peerId: string): void {
     const link = this.links.get(peerId);
     if (!link) return;
-    this.upgradePackageNames.delete(peerId);
     // 監看的半成品幀也一併丟掉（分片通道已關，永遠組不完了）
     this.watchFrames.delete(peerId);
     try {

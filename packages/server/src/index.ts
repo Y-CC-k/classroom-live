@@ -226,8 +226,9 @@ async function handleSfuCreateTransport(
     sendError(socket, 'not-hello', '送出 sfu-create-transport 前必須先 hello');
     return;
   }
-  if (client.role !== 'teacher') {
-    sendError(socket, 'role-forbidden', '只有教師可以建立 SFU transport');
+  // 教師與學生皆可建立 transport（教師用於廣播 send、學生用於接管畫面 send；教師亦可建立 recv 接收學生畫面）
+  if (!['teacher', 'student'].includes(client.role)) {
+    sendError(socket, 'role-forbidden', '只有教師或學生可以建立 SFU transport');
     return;
   }
 
@@ -250,7 +251,7 @@ async function handleSfuCreateTransport(
     };
 
     send(socket, { t: 'sfu-transport-created', transportId: transport.id, transportOptions });
-    log.info(`[SFU] ${message.direction} transport created for class ${message.classId}: ${transport.id}`);
+    log.info(`[SFU] ${message.direction} transport created for class ${message.classId} by ${client.role}: ${transport.id}`);
   } catch (error) {
     sendError(socket, 'internal', `建立 SFU transport 失敗：${error instanceof Error ? error.message : String(error)}`);
   }
@@ -299,8 +300,9 @@ async function handleSfuProduce(
     sendError(socket, 'not-hello', '送出 sfu-produce 前必須先 hello');
     return;
   }
-  if (client.role !== 'teacher') {
-    sendError(socket, 'role-forbidden', '只有教師可以產生 SFU producer');
+  // 教師與學生皆可 produce（教師廣播畫面、學生遠端接管畫面）
+  if (!['teacher', 'student'].includes(client.role)) {
+    sendError(socket, 'role-forbidden', '只有教師或學生可以產生 SFU producer');
     return;
   }
 
@@ -325,7 +327,7 @@ async function handleSfuProduce(
       message.appData ?? {}
     );
     send(socket, { t: 'sfu-produced', transportId: message.transportId, producerId });
-    log.info(`[SFU] Producer created: ${producerId} (${message.kind})`);
+    log.info(`[SFU] Producer created: ${producerId} (${message.kind}) by ${client.role}`);
   } catch (error) {
     sendError(socket, 'internal', `建立 SFU producer 失敗：${error instanceof Error ? error.message : String(error)}`);
   }

@@ -109,6 +109,44 @@
             <span>自適應畫質（自降畫質，緩解秒差）</span>
           </label>
         </div>
+
+        <!-- 進階 WebRTC 設定：ICE 伺服器與遠端接管截圖約束 -->
+        <div class="advanced-section collapsed">
+          <h3 class="advanced-title">
+            <span>進階 WebRTC 設定</span>
+            <button id="btn-advanced-toggle" class="btn tiny ghost" title="摺疊／展開">▾</button>
+          </h3>
+          <div class="advanced-item ice-row">
+            <label for="ice-servers">ICE 伺服器（STUN/TURN，JSON 陣列）</label>
+            <textarea id="ice-servers" class="grow mono" rows="2" placeholder="[{&quot;urls&quot;:&quot;stun:stun.l.google.com:19302&quot;}]"></textarea>
+            <span class="hint">由資訊組在 config.json 配置，此處可覆蓋；留空則使用內建預設 STUN</span>
+          </div>
+          <div class="advanced-item">
+            <label class="constraint-item">
+              <span class="constraint-label">遠端接管幀率上限</span>
+              <input id="monitor-max-fps" type="number" min="1" max="60" step="1" value="10" /> fps
+            </label>
+          </div>
+          <div class="advanced-item">
+            <label class="constraint-item">
+              <span class="constraint-label">遠端接管寬度上限</span>
+              <input id="monitor-max-width" type="number" min="320" max="3840" step="1" value="0" /> px
+            </label>
+          </div>
+          <div class="advanced-item">
+            <label class="constraint-item">
+              <span class="constraint-label">遠端接管高度上限</span>
+              <input id="monitor-max-height" type="number" min="240" max="2160" step="1" value="0" /> px
+            </label>
+          </div>
+          <div class="advanced-item">
+            <label class="checkbox-row">
+              <input id="monitor-use-sfu" type="checkbox" />
+              <span>遠端接管即時畫面走 SFU（經伺服器轉發，跨網段較穩定；未勾選＝P2P 直接連線，延遲較低）</span>
+            </label>
+          </div>
+          <p class="hint">這些設定僅影響「遠端接管」時學生機截圖的解析度與幀率，不影響教師機廣播畫質。</p>
+        </div>
         <p id="quality-hint" class="hint"></p>
         <!-- 圖片廣播頻寬統計（泵每 10 秒回報一次；排課時判斷「網路還是編碼」卡哪邊） -->
         <p id="pump-stats" class="hint" hidden></p>
@@ -269,7 +307,7 @@
         <button id="btn-control-exit" class="btn tiny danger">✕ 離開接管</button>
       </div>
       <div class="control-stage">
-        <img id="control-img" class="control-img" alt="學生機畫面" />
+        <video id="control-img" class="control-img" autoplay playsinline muted hidden></video>
       </div>
     </div>
 

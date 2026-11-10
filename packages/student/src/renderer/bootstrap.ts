@@ -78,6 +78,12 @@ const els = {
 let config: StudentConfig;
 let client: SignalingClient | null = null;
 let broadcastPc: RTCPeerConnection | null = null;
+/** 學生 → 教師即時畫面（遠端接管時，透過 SFU send transport produce） */
+let monitorPc: RTCPeerConnection | null = null;
+/** SFU send transport（學生端送流到 SFU，供教師端 consume） */
+let sfuSendTransport: RTCPeerConnection | null = null;
+let sfuSendTransportId: string | null = null;
+let sfuProducerId: string | null = null;
 let ctl: RTCDataChannel | null = null;
 let evt: RTCDataChannel | null = null;
 /**
@@ -343,7 +349,7 @@ function handleSfuTransportCreated(message: { transportId: string; transportOpti
 
   // 建立本地 RTCPeerConnection 連接到 SFU
   const pc = new RTCPeerConnection({
-    iceServers: [],
+    iceServers: config.iceServers ?? [{ urls: 'stun:stun.l.google.com:19302' }],
     bundlePolicy: 'max-bundle',
     rtcpMuxPolicy: 'require',
   });
@@ -501,17 +507,79 @@ function trackPeers(peers: PeerInfo[]): void {
 }
 
 async function handleSignal(from: string, payload: SignalPayload): Promise<void> {
-  if (payload.kind !== 'broadcast') return;
-  // 教師是 offerer
-  if ('description' in payload && payload.description.type === 'offer') {
-    await acceptBroadcast(payload.description as RTCSessionDescriptionInit);
-  } else if ('ice' in payload) {
-    if (!broadcastPc) return;
-    const candidate = payload.ice as RTCIceCandidateInit;
-    if (broadcastPc.remoteDescription) {
-      await broadcastPc.addIceCandidate(candidate).catch(() => undefined);
-    } else {
-      pendingIce.push(candidate);
+  if (payload.kind === 'broadcast') {
+    // 教師是 offerer
+    if ('description' in payload && payload.description.type === 'offer') {
+      await acceptBroadcast(payload.description as RTCSessionDescriptionInit);
+    } else if ('ice' in payload) {
+      if (!broadcastPc) return;
+      const candidate = payload.ice as RTCIceCandidateInit;
+      if (broadcastPc.remoteDescription) {
+        await broadcastPc.addIceCandidate(candidate).catch(() => undefined);
+      } else {
+        pendingIce.push(candidate);
+      }
+    }
+  } else if (payload.kind === 'monitor') {
+    // P2P 監控/接管（舊路徑，保留相容）
+    if ('description' in payload && payload.description.type === 'answer') {
+      if (!monitorPc) return;
+      void monitorPc.setRemoteDescription(payload.description as RTCSessionDescriptionInit);
+    } else if ('ice' in payload) {
+      if (!monitorPc) return;
+      const candidate = payload.ice as RTCIceCandidateInit;
+      if (monitorPc.remoteDescription) {
+        void monitorPc.addIceCandidate(candidate).catch(() => undefined);
+      }
+    }
+  } else if (payload.kind === 'sfu') {
+    // SFU 信令：學生端作為 send 方，與 SFU 協商 transport 與 producer
+    const sfuType = (payload as { type?: string }).type;
+    if (sfuType === 'create-transport') {
+      const { transportId, transportOptions } = (payload as any) as {
+        transportId: string;
+        transportOptions: any;
+      };
+      sfuSendTransportId = transportId;
+
+      const pc = sfuSendTransport;
+      if (!pc) return;
+
+      // SFU 回傳的 dtlsParameters 作為遠端 offer
+      const dtlsParams = transportOptions?.dtlsParameters;
+      if (dtlsParams?.sdp) {
+        try {
+          await pc.setRemoteDescription({
+            type: 'offer',
+            sdp: dtlsParams.sdp,
+          } as RTCSessionDescriptionInit);
+          const answer = await pc.createAnswer();
+          await pc.setLocalDescription(answer);
+          // answer 的 SDP 與 ICE 已經在 onicecandidate 中發送 sfu-connect-transport
+        } catch (error) {
+          log('warn', `SFU transport setRemoteDescription 失敗：${error instanceof Error ? error.message : String(error)}`);
+        }
+      }
+    } else if (sfuType === 'connect-transport') {
+      log('info', 'SFU send transport 已連線');
+    } else if (sfuType === 'produce') {
+      const { producerId } = (payload as any) as { producerId: string };
+      sfuProducerId = producerId;
+      log('info', `SFU producer 已建立：${producerId}`);
+
+      // 通知教師端我的 producerId，以便教師端 consume
+      if (teacherId && client && sfuSendTransportId) {
+        client.send({
+          t: 'signal',
+          to: teacherId,
+          payload: {
+            kind: 'sfu',
+            type: 'producer-ready',
+            producerId,
+            transportId: sfuSendTransportId,
+          } as any,
+        });
+      }
     }
   }
 }
@@ -577,7 +645,10 @@ async function acceptBroadcast(description: RTCSessionDescriptionInit): Promise<
   closeBroadcast();
   pendingIce = [];
 
-  const pc = new RTCPeerConnection({ iceServers: [], bundlePolicy: 'max-bundle' });
+  const pc = new RTCPeerConnection({
+    iceServers: config.iceServers ?? [{ urls: 'stun:stun.l.google.com:19302' }],
+    bundlePolicy: 'max-bundle',
+  });
   broadcastPc = pc;
 
   pc.ontrack = event => {
@@ -760,6 +831,8 @@ function closeBroadcast(): void {
     fileCtl?.close();
     imgCtl?.close();
     broadcastPc?.close();
+    monitorPc?.close();
+    sfuSendTransport?.close();
   } catch {
     // 忽略
   }
@@ -772,10 +845,168 @@ function closeBroadcast(): void {
   incomingImg = null;
   els.broadcastImg.removeAttribute('src');
   broadcastPc = null;
+  monitorPc = null;
+  sfuSendTransport = null;
+  sfuSendTransportId = null;
+  sfuProducerId = null;
   pendingIce = [];
 
   // 清理 SFU 資源
   closeSfuResources();
+}
+
+/** 學生端即時畫面連線清理（與 closeBroadcast 分開，因為監看/接管可能獨立於廣播連線） */
+function stopMonitor(): void {
+  try {
+    monitorPc?.close();
+    sfuSendTransport?.close();
+  } catch {
+    /* 忽略 */
+  }
+  monitorPc = null;
+  sfuSendTransport = null;
+  sfuSendTransportId = null;
+  sfuProducerId = null;
+}
+
+/** 學生端建立即時畫面連線（遠端接管時）：根據 useSfu 選擇 P2P 或 SFU 傳輸 */
+async function startMonitor(opts?: {
+  maxFramerate?: number;
+  maxWidth?: number;
+  maxHeight?: number;
+  useSfu?: boolean;
+}): Promise<void> {
+  stopMonitor();
+  try {
+    const source = await window.studentApi.getScreenSource();
+    if ('error' in source) {
+      log('warn', `即時畫面無法啟動：${source.error}`);
+      return;
+    }
+
+    // Chrome desktopCapturer 需要 mandatory.chromeMediaSource，標準 MediaTrackConstraints 型別不包含，
+    // 這裡用 any 繞過類型檢查（與監看/廣播泵做法相同）
+    const videoConstraints: any = {
+      mandatory: {
+        chromeMediaSource: 'desktop',
+        chromeMediaSourceId: source.id,
+      },
+    };
+    if (opts?.maxFramerate) {
+      videoConstraints.mandatory.maxFrameRate = opts.maxFramerate;
+    }
+    if (opts?.maxWidth) {
+      videoConstraints.mandatory.maxWidth = opts.maxWidth;
+    }
+    if (opts?.maxHeight) {
+      videoConstraints.mandatory.maxHeight = opts.maxHeight;
+    }
+
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: false,
+      video: videoConstraints,
+    } as unknown as MediaStreamConstraints);
+
+    const videoTrack = stream.getVideoTracks()[0];
+    if (!videoTrack) {
+      log('warn', '即時畫面無法啟動：未取得視訊軌');
+      return;
+    }
+
+    // 影片要持續出幀：掛在 composition 管線（與監看/廣播同樣做法）
+    const video = document.createElement('video');
+    video.muted = true;
+    video.autoplay = true;
+    video.playsInline = true;
+    video.style.cssText =
+      'position:fixed;left:0;top:0;width:8px;height:8px;opacity:0.01;z-index:-1;pointer-events:none;';
+    document.body.append(video);
+    video.srcObject = stream;
+    await video.play().catch(() => undefined);
+
+    if (opts?.useSfu) {
+      // SFU 模式：建立 SFU send transport，與伺服器協商後 produce 視訊軌
+      const pc = new RTCPeerConnection({
+        iceServers: config.iceServers ?? [{ urls: 'stun:stun.l.google.com:19302' }],
+        bundlePolicy: 'max-bundle',
+        rtcpMuxPolicy: 'require',
+      });
+      sfuSendTransport = pc;
+      monitorPc = pc; // 兼容既有清理邏輯
+
+      pc.addTrack(videoTrack, stream);
+
+      pc.onicecandidate = event => {
+        if (!event.candidate || !client) return;
+        client.send({
+          t: 'sfu-connect-transport',
+          classId: config.classId,
+          transportId: sfuSendTransportId || '',
+          dtlsParameters: event.candidate.toJSON(),
+        });
+      };
+
+      pc.onconnectionstatechange = () => {
+        if (pc.connectionState === 'failed' || pc.connectionState === 'closed') {
+          log('warn', `SFU 即時畫面連線中斷（${pc.connectionState}）`);
+          stopMonitor();
+        }
+      };
+
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+
+      if (client) {
+        client.send({
+          t: 'sfu-create-transport',
+          classId: config.classId,
+          direction: 'send',
+        });
+      }
+
+      log('info', '即時畫面連線已啟動（SFU send transport）');
+    } else {
+      // P2P 模式：建立 RTCPeerConnection 作為 offerer，直接連到教師端
+      const pc = new RTCPeerConnection({
+        iceServers: config.iceServers ?? [{ urls: 'stun:stun.l.google.com:19302' }],
+        bundlePolicy: 'max-bundle',
+      });
+      monitorPc = pc;
+
+      pc.addTrack(videoTrack, stream);
+
+      pc.onicecandidate = event => {
+        if (!event.candidate || !teacherId) return;
+        client?.send({
+          t: 'signal',
+          to: teacherId,
+          payload: { kind: 'monitor', ice: event.candidate.toJSON() },
+        });
+      };
+
+      pc.onconnectionstatechange = () => {
+        if (pc.connectionState === 'failed' || pc.connectionState === 'closed') {
+          log('warn', `P2P 即時畫面連線中斷（${pc.connectionState}）`);
+          stopMonitor();
+        }
+      };
+
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+      if (teacherId && client) {
+        client.send({
+          t: 'signal',
+          to: teacherId,
+          payload: { kind: 'monitor', description: { type: 'offer', sdp: offer.sdp } },
+        });
+      }
+
+      log('info', '即時畫面連線已啟動（P2P 直接連線）');
+    }
+  } catch (error) {
+    log('warn', `即時畫面啟動失敗：${error instanceof Error ? error.message : String(error)}`);
+    stopMonitor();
+  }
 }
 
 /**
@@ -873,6 +1104,8 @@ interface WatchState {
   timer: ReturnType<typeof setTimeout> | undefined;
   /** 這次監看的幀寬度上限（教師端可指定，預設 WATCH_MAX_WIDTH） */
   maxWidth: number;
+  /** 這次監看的幀高度上限（教師端可指定，省略＝不限制高度，僅依寬度等比例縮放） */
+  maxHeight?: number;
   /** 已送出的幀序號（從 1 開始） */
   seq: number;
   /** 上一次抽照還沒跑完就先跳過（避免疊張堆積） */
@@ -882,7 +1115,7 @@ interface WatchState {
 /** 教師監看中的送圖狀態；null = 沒有在監看 */
 let watchState: WatchState | null = null;
 
-async function startWatch(intervalMs: number, maxWidth?: number): Promise<void> {
+async function startWatch(intervalMs: number, maxWidth?: number, maxHeight?: number): Promise<void> {
   stopWatch('restart');
   const source = await window.studentApi.getScreenSource();
   if ('error' in source) {
@@ -891,6 +1124,11 @@ async function startWatch(intervalMs: number, maxWidth?: number): Promise<void> 
   }
   // 寬度上限：以教師端要求為準（clamp 到 320～960），不指定就沿用預設
   const widthCap = Math.max(320, Math.min(WATCH_MAX_WIDTH, Math.round(maxWidth ?? WATCH_MAX_WIDTH)));
+  // 高度上限：以教師端要求為準（clamp 到 240～1080），不指定就不限制高度（只依寬度等比例縮放）
+  let heightCap: number | undefined;
+  if (maxHeight) {
+    heightCap = Math.max(240, Math.min(1080, Math.round(maxHeight)));
+  }
   try {
     // 與教師端廣播同款約束：desktopCapturer 的 screen: 來源配
     // chromeMediaSource: 'desktop' 的舊式約束（不跳系統選擇視窗）。
@@ -902,7 +1140,6 @@ async function startWatch(intervalMs: number, maxWidth?: number): Promise<void> 
           chromeMediaSourceId: source.id,
           maxFrameRate: 2,
           maxWidth: widthCap,
-          maxHeight: 1000,
         },
       },
     } as unknown as MediaStreamConstraints;
@@ -925,6 +1162,7 @@ async function startWatch(intervalMs: number, maxWidth?: number): Promise<void> 
       canvas: document.createElement('canvas'),
       timer: undefined,
       maxWidth: widthCap,
+      maxHeight: heightCap,
       seq: 0,
       busy: false,
     };
@@ -962,7 +1200,11 @@ async function sendWatchFrame(): Promise<void> {
     const video = state.video;
     if (video.readyState < 2 || video.videoWidth === 0) return;
 
-    const scale = Math.min(1, state.maxWidth / video.videoWidth);
+    // 同時根據 maxWidth 與 maxHeight 計算縮放比例，取較嚴格者，
+    // 確保截圖不會超過任一邊界，避免監控牆顯示不完整或比例畸形。
+    let scale = 1;
+    if (state.maxWidth) scale = Math.min(scale, state.maxWidth / video.videoWidth);
+    if (state.maxHeight) scale = Math.min(scale, state.maxHeight / video.videoHeight);
     state.canvas.width = Math.round(video.videoWidth * scale);
     state.canvas.height = Math.round(video.videoHeight * scale);
     const ctx = state.canvas.getContext('2d');
@@ -1309,7 +1551,18 @@ async function handleControl(raw: unknown): Promise<void> {
       break;
 
     case 'mode': {
-      log('info', message.mode === 'control' ? '老師已接管本機鍵鼠（指導模式）' : '控制模式：' + message.mode);
+      if (message.mode === 'control') {
+        log('info', '老師已接管本機鍵鼠（指導模式）');
+        void startMonitor({
+          maxFramerate: Number((message as { maxFramerate?: number }).maxFramerate) || undefined,
+          maxWidth: Number((message as { maxWidth?: number }).maxWidth) || undefined,
+          maxHeight: Number((message as { maxHeight?: number }).maxHeight) || undefined,
+          useSfu: Boolean((message as { useSfu?: boolean }).useSfu),
+        });
+      } else {
+        log('info', '控制模式：' + message.mode);
+        stopMonitor();
+      }
       break;
     }
 
@@ -1374,7 +1627,11 @@ async function handleControl(raw: unknown): Promise<void> {
       // 跟廣播／鎖定完全獨立；教師關掉監看或控制通道斷線就停止。
       const on = Boolean(message.on);
       if (on) {
-        await startWatch(Number(message.intervalMs) || 3000, Number(message.maxWidth) || undefined);
+        await startWatch(
+          Number(message.intervalMs) || 3000,
+          Number(message.maxWidth) || undefined,
+          Number(message.maxHeight) || undefined
+        );
       } else {
         log('info', '老師停止監看本機');
         stopWatch('teacher-stopped');
@@ -1491,36 +1748,6 @@ async function handleControl(raw: unknown): Promise<void> {
       // 教師端獨立「關閉學生網頁」指令：一次關掉 Chrome／Edge
       log('info', '老師要求關閉 Chrome／Edge');
       await window.studentApi.closeBrowsers();
-      break;
-    }
-
-    case 'apply-update': {
-      log('warn', '老師要求套用更新（本機即將重啟）');
-      try {
-        const result = await window.studentApi.applyUpdate();
-        if (!result.ok) {
-          log('warn', `無法套用更新：${result.reason ?? '未知原因'}`);
-        }
-        // 無論套用中或被擋下，都回報教師機（不再無聲）
-        sendEvt({
-          t: 'update-result',
-          ok: result.ok,
-          stage: result.ok ? 'apply' : 'rejected',
-          message: result.ok
-            ? '解壓成功，新版 build ' +
-              ((result as { appliedBuild?: string }).appliedBuild ?? '?') +
-              ' 已落地（本機重啟中）'
-            : result.reason,
-        });
-      } catch {
-        // 主行程 relaunch+exit 後 IPC 回應拿不到是預期路徑之一；重啟後重連會帶回新 build 標記
-        try {
-          sendEvt({ t: 'update-result', ok: true, stage: 'restarting', message: '已開始套用（本機重啟中）' });
-        } catch {
-          /* 通道也斷就算了 */
-        }
-        log('info', '套用中：本機即將重啟上新版');
-      }
       break;
     }
 

@@ -233,10 +233,6 @@ export class TeacherSession {
 
   // ─────────────────────────── 檔案傳送 ───────────────────────────
 
-  sendUpgrade(file: File): number {
-    return this.fileTransferManager.sendUpgrade(file);
-  }
-
   sendFiles(files: File[]): number {
     return this.fileTransferManager.sendFiles(files);
   }
@@ -259,7 +255,7 @@ export class TeacherSession {
       this.monitorManager.ingestWatchChunk(peerId, parsed);
       return;
     }
-    // 其他訊息由 BroadcastManager 處理（evt-hello, pong, update-result, file-result, error, uwf-result）
+    // 其他訊息由 BroadcastManager 處理（evt-hello, pong, file-result, error, uwf-result）
     // 這裡不需要額外處理
   }
 
@@ -352,8 +348,8 @@ export class TeacherSession {
   // ─────────────────────────── 多螢幕監控牆 ───────────────────────────
 
   /** 同時開始監看多台學生機（監控牆用）。回傳實際開始監看的數量。 */
-  watchStudents(peerIds: string[], intervalMs = 3000, maxWidth?: number): number {
-    return this.monitorManager.watchStudents(peerIds, intervalMs, maxWidth);
+  watchStudents(peerIds: string[], intervalMs = 3000, maxWidth?: number, maxHeight?: number): number {
+    return this.monitorManager.watchStudents(peerIds, intervalMs, maxWidth, maxHeight);
   }
 
   /** 停止單台學生機的監看。 */
@@ -414,19 +410,39 @@ export class TeacherSession {
     return this.broadcastManager.resumeTeacherPump();
   }
 
-  /** 進入遠端接管（單台）：送 control 模式，回傳是否成功。 */
-  controlStart(peerId: string): boolean {
+  /** 進入遠端接管（單台）：送 control 模式，並建立即時畫面連線。 */
+  async controlStart(peerId: string): Promise<boolean> {
     const link = this.broadcastManager.getLinks().get(peerId);
     if (link?.ctl?.readyState !== 'open') return false;
-    this.broadcastManager.sendCtl(peerId, { t: 'mode', mode: 'control' });
+    const constraints = this.broadcastManager.getMonitorConstraints();
+    this.broadcastManager.sendCtl(peerId, {
+      t: 'mode',
+      mode: 'control',
+      maxFramerate: constraints.maxFramerate,
+      maxWidth: constraints.maxWidth,
+      maxHeight: constraints.maxHeight,
+      useSfu: this.broadcastManager.getMonitorUseSfu(),
+    });
+    if (this.broadcastManager.getMonitorUseSfu()) {
+      // SFU 模式：建立教師端的 SFU recv transport，準備接收學生端的視訊軌
+      await this.broadcastManager.createSfuRecvTransport();
+    } else {
+      // P2P 模式：建立教師端的 monitor 連線（answerer），等待學生端發來螢幕視訊軌
+      await this.broadcastManager.startMonitorLink(peerId);
+    }
     return true;
   }
 
-  /** 離開遠端接管：送回 monitor 模式。 */
+  /** 離開遠端接管：送回 monitor 模式，停止接收該學生的即時畫面。 */
   controlStop(peerId: string): void {
     const link = this.broadcastManager.getLinks().get(peerId);
     if (link?.ctl?.readyState === 'open') {
       this.broadcastManager.sendCtl(peerId, { t: 'mode', mode: 'monitor' });
+    }
+    if (this.broadcastManager.getMonitorUseSfu()) {
+      this.broadcastManager.stopSfuConsumeStudent(peerId);
+    } else {
+      this.broadcastManager.stopMonitorLink(peerId);
     }
   }
 

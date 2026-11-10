@@ -1,6 +1,6 @@
 {
   "name": "@classroom/protocol",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "type": "module",
   "description": "共用通訊協定：信令、DataChannel、虛擬鍵碼對應",

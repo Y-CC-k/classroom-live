@@ -755,6 +755,14 @@ async function connect(): Promise<void> {
     broadcastMode: config.broadcastMode,
     // 注入設定檔的定影幀品質（每次重連都套一次，避免 session 重建後回到預設）
     imgSharpQuality: config.imgSharpQuality,
+    // WebRTC ICE 伺服器（STUN/TURN）：部署層可在 config.json 配置，未設定則使用內建預設 STUN
+    iceServers: config.iceServers,
+    // 遠端接管即時畫面（monitor 軌）約束
+    monitorMaxFramerate: config.monitorMaxFramerate,
+    monitorMaxWidth: config.monitorMaxWidth,
+    monitorMaxHeight: config.monitorMaxHeight,
+    // 遠端接管即時畫面是否走 SFU（true = 經伺服器轉發，false = P2P 直接連線）
+    monitorUseSfu: config.monitorUseSfu,
     // 圖片廣播頻寬統計（每 10 秒一筆）：顯示在畫質設定下方的提示列
     onImageStats: stats => {
       els.pumpStats.hidden = false;
@@ -866,16 +874,6 @@ function bindEvents(): void {
       // ── 送檔／升級 分支 ──
       if (!session?.isConnected) {
         log('warn', '尚未連線；請先按「連線」再送檔。');
-        return;
-      }
-      const pack = files.length === 1 ? files.find(file => isUpgradePackage(file.name)) : undefined;
-      if (pack) {
-        const count = session.sendUpgrade(pack);
-        if (count > 0) {
-          log('info', `偵測到升級包 ${pack.name}：已送出給 ${count} 台；各台寫入成功會自動套用並重啟。`);
-        } else {
-          log('warn', '沒有學生機可升級（檔案通道尚未連上任何一台）。');
-        }
         return;
       }
       const count = session.sendFiles(files);

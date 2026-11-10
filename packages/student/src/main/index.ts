@@ -3,7 +3,6 @@ import { ipcMain } from 'electron';
 
 import { initializeApp } from './modules/window.js';
 import { registerFileIpc } from './modules/file-recv.js';
-import { registerUpdateIpc } from './modules/update.js';
 import { registerDiscoverIpc } from './modules/discover-ipc.js';
 import { initNativeControl, registerNativeControlIpc } from './modules/native-control.js';
 import { registerSystemCommandsIpc } from './modules/system-commands.js';
@@ -13,7 +12,6 @@ import { IPC } from '../shared/ipc.js';
 // 註冊各模組的 IPC
 function registerAllIpc(): void {
   registerFileIpc();
-  registerUpdateIpc();
   registerDiscoverIpc();
   registerSystemCommandsIpc();
   // 遠端接管：原生鍵鼠注入

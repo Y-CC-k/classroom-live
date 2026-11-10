@@ -1,6 +1,6 @@
 {
   "name": "@classroom/server-gui",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "伺服機控制台：圖形化啟動／停止信號伺服器（管理 classroom-server.exe）",
   "main": "dist/main/index.cjs",

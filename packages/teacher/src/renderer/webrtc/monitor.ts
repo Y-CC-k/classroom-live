@@ -51,14 +51,16 @@ export class MonitorManager {
    * 對單一台開始／停止監看。
    * 支援多台同時監看（不會自動停掉其他台）。
    * `maxWidth`：要求學生端把幀壓到指定寬度以內（省略＝學生端預設 960）。
+   * `maxHeight`：要求學生端把幀壓到指定高度以內（省略＝不限制，僅依 maxWidth 等比例縮放）。
    */
-  watchStudent(peerId: string, on: boolean, intervalMs = 3000, maxWidth?: number): boolean {
+  watchStudent(peerId: string, on: boolean, intervalMs = 3000, maxWidth?: number, maxHeight?: number): boolean {
     const link = this.links.get(peerId);
     if (on) {
       if (link?.ctl?.readyState !== 'open') return false;
-      if (!Number.isFinite(intervalMs) || intervalMs < 500) intervalMs = 500;
+      if (!Number.isFinite(intervalMs) || intervalMs < 3000) intervalMs = 3000;
       const width = Number.isFinite(maxWidth) && (maxWidth ?? 0) >= 320 ? Math.round(maxWidth!) : undefined;
-      this.sendCtl(peerId, { t: 'watch', on: true, intervalMs: Math.round(intervalMs), maxWidth: width });
+      const height = Number.isFinite(maxHeight) && (maxHeight ?? 0) >= 240 ? Math.round(maxHeight!) : undefined;
+      this.sendCtl(peerId, { t: 'watch', on: true, intervalMs: Math.round(intervalMs), maxWidth: width, maxHeight: height });
       return true;
     }
     if (link?.ctl?.readyState === 'open') {
@@ -72,10 +74,10 @@ export class MonitorManager {
    * 同時開始監看多台學生機（監控牆用）。
    * 回傳實際開始監看的數量。
    */
-  watchStudents(peerIds: string[], intervalMs = 3000, maxWidth?: number): number {
+  watchStudents(peerIds: string[], intervalMs = 3000, maxWidth?: number, maxHeight?: number): number {
     let count = 0;
     for (const peerId of peerIds) {
-      if (this.watchStudent(peerId, true, intervalMs, maxWidth)) count++;
+      if (this.watchStudent(peerId, true, intervalMs, maxWidth, maxHeight)) count++;
     }
     return count;
   }

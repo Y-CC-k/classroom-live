@@ -1,6 +1,6 @@
 {
   "name": "@classroom/native",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "Windows 原生層：SendInput 鍵鼠注入 + 低階鉤子輸入攔截",
   "main": "./lib/index.ts",

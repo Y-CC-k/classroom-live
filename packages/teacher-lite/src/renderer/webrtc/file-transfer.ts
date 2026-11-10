@@ -27,22 +27,6 @@ export class FileTransferManager {
   }
 
   /**
-   * 熱更新：把升級包（resources\app 的 zip）送給所有已連線學生機。
-   * 送完檔案不直接確認套用——等該台的 file-result 成功回報後再送
-   * `apply-update`，避免「套用時檔案還沒落地」。
-   */
-  sendUpgrade(file: File): number {
-    const queued: string[] = [];
-    for (const [peerId, link] of this.links) {
-      if (link.file && link.file.readyState === 'open') {
-        queued.push(peerId);
-        void this.deliverFiles(peerId, link.file, [file]);
-      }
-    }
-    return queued.length;
-  }
-
-  /**
    * 把檔案傳送到所有已連線學生機（落在 config.json 指定的資料夾）。
    * 回傳「已開始送出」的學生機數量；每台的結果由 evt 通道回報 file-result。
    *

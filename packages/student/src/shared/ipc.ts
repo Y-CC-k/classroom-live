@@ -35,8 +35,6 @@ export const IPC = {
   setInputLock: 'student:set-input-lock',
   /** 教師要求關機：以 Windows 原生 shutdown 排程 delaySec 秒後關機 */
   requestShutdown: 'student:request-shutdown',
-  /** 熱更新：解壓最近收到的升級包覆蓋 resources\app 後重啟 */
-  applyUpdate: 'student:apply-update',
   /** 讀取自訂待機底圖（回傳 data URL；未設定回 null） */
   getIdleImage: 'student:get-idle-image',
   /** UDP 廣播搜尋區網中的教室伺服器 */
@@ -118,6 +116,11 @@ export interface StudentConfig {
   fileSaveDir: string;
   /** SFU 伺服器位址（未設定時沿用 serverUrl；僅 SFU 模式使用） */
   sfuServerUrl: string;
+  /**
+   * WebRTC ICE 伺服器（STUN/TURN），供 broadcast 與 monitor 連線 NAT 穿透用。
+   * 部署層（config.json）可在此設定；未設定時內建預設為 Google 公開 STUN。
+   */
+  iceServers: RTCIceServer[];
 }
 
 /**
@@ -239,7 +242,6 @@ export interface StudentApi {
   }): Promise<{ ok: boolean; message?: string }>;
   /** 原生模組狀態 */
   nativeStatus(): Promise<{ ready: boolean; error: string | null }>;
-  applyUpdate(): Promise<{ ok: boolean; reason?: string; appliedBuild?: string }>;
   /** 讀取自訂待機底圖（data URL）；未設定回 null */
   getIdleImage(): Promise<string | null>;
   /** UDP 廣播搜尋區網中的教室伺服器；回傳找到的 ws 位址清單 */

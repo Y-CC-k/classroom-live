@@ -1,6 +1,6 @@
 {
   "name": "@classroom/sfu",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "SFU 媒體伺服器：mediasoup worker + router，用於教室廣播轉發",
   "type": "module",

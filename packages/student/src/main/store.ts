@@ -37,6 +37,7 @@ const DEFAULTS: StudentConfig = {
   serverUrlLocked: false,
   fileSaveDir: '',
   sfuServerUrl: '',
+  iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
 };
 
 const DEPLOY_FILE = 'config.json';
@@ -51,6 +52,8 @@ interface DeploymentConfig {
   autoConnect?: boolean;
   /** 登入自動啟動（整批部署可在此關閉；個人層可在設定面板調整） */
   autoStart?: boolean;
+  /** WebRTC ICE 伺服器（STUN/TURN） */
+  iceServers?: RTCIceServer[];
 }
 
 /** 個人層 JSON 額外記錄的部署套用追蹤（僅存在磁碟，不回傳給 renderer） */
@@ -60,6 +63,7 @@ interface DeployTracing {
   appliedDeployFileSaveDir: string | null;
   appliedDeployAutoConnect: boolean | null;
   appliedDeployAutoStart: boolean | null;
+  appliedDeployIceServers: RTCIceServer[] | null;
 }
 
 let cache: StudentConfig | null = null;
@@ -89,6 +93,9 @@ function loadDeployment(): DeploymentConfig {
     }
     if (typeof raw.autoStart === 'boolean') {
       result.autoStart = raw.autoStart;
+    }
+    if (Array.isArray(raw.iceServers)) {
+      result.iceServers = raw.iceServers as RTCIceServer[];
     }
   } catch {
     // 沒有部署設定檔或格式錯 → 完全交給個人層
@@ -123,6 +130,7 @@ function readPersonal(): { data: Partial<StudentConfig>; tracing: DeployTracing;
     appliedDeployFileSaveDir: null,
     appliedDeployAutoConnect: null,
     appliedDeployAutoStart: null,
+    appliedDeployIceServers: null,
   };
   let existed = true;
   try {
@@ -134,6 +142,7 @@ function readPersonal(): { data: Partial<StudentConfig>; tracing: DeployTracing;
       appliedDeployFileSaveDir: typeof raw.appliedDeployFileSaveDir === 'string' ? raw.appliedDeployFileSaveDir : null,
       appliedDeployAutoConnect: typeof raw.appliedDeployAutoConnect === 'boolean' ? raw.appliedDeployAutoConnect : null,
       appliedDeployAutoStart: typeof raw.appliedDeployAutoStart === 'boolean' ? raw.appliedDeployAutoStart : null,
+      appliedDeployIceServers: Array.isArray(raw.appliedDeployIceServers) ? raw.appliedDeployIceServers : null,
     };
   } catch {
     // 檔案不存在或損毀 → 回到預設值
@@ -215,6 +224,11 @@ export function getConfig(): StudentConfig {
     // 沒有部署值也沒有個人值 → 內建預設（D:\；沒有 D 槽的機器退回「桌面\SETUP」）
     if (!next.fileSaveDir) next.fileSaveDir = defaultFileSaveDir();
 
+    // 部署層的 iceServers：有設定時壓過個人層
+    if (deploy.iceServers !== undefined) {
+      next.iceServers = deploy.iceServers;
+    }
+
     next.serverUrlLocked = deploy.lockServerUrl;
     cache = next;
 
@@ -289,5 +303,9 @@ function sanitize(config: StudentConfig): StudentConfig {
     idleTitle: (config.idleTitle ?? '').trim().slice(0, 32),
     idleText: (config.idleText ?? '').trim().slice(0, 200),
     idleImagePath: config.idleImagePath ?? '',
+    // ICE 伺服器：部署層可配置；沒有時使用內建預設
+    iceServers: Array.isArray(config.iceServers) && config.iceServers.length > 0
+      ? config.iceServers
+      : DEFAULTS.iceServers,
   };
 }

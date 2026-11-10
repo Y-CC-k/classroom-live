@@ -55,6 +55,13 @@ const DEFAULTS: TeacherConfig = {
   sfuServerUrl: '',
   sfuAnnouncedIp: null,
   sfuRtpPortRange: null,
+  // ICE 伺服器：內建預設 Google 公開 STUN，部署層可覆蓋（例如加入自有 TURN）
+  iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
+  // 遠端接管即時畫面（monitor 軌）預設約束
+  monitorMaxFramerate: 10,
+  monitorMaxWidth: 0,
+  monitorMaxHeight: 0,
+  monitorUseSfu: false,
 };
 
 const DEPLOY_FILE = 'config.json';
@@ -63,12 +70,15 @@ interface DeploymentConfig {
   serverUrl?: string;
   classId?: string;
   lockServerUrl: boolean;
+  /** WebRTC ICE 伺服器（STUN/TURN） */
+  iceServers?: RTCIceServer[];
 }
 
 /** 個人層 JSON 額外記錄的部署套用追蹤（僅存在磁碟，不回傳給 renderer） */
 interface DeployTracing {
   appliedDeployServerUrl: string | null;
   appliedDeployClassId: string | null;
+  appliedDeployIceServers: RTCIceServer[] | null;
 }
 
 let cache: TeacherConfig | null = null;
@@ -90,6 +100,9 @@ function loadDeployment(): DeploymentConfig {
     if (typeof raw.classId === 'string' && raw.classId.trim()) {
       result.classId = raw.classId.trim().slice(0, 16);
     }
+    if (Array.isArray(raw.iceServers)) {
+      result.iceServers = raw.iceServers as RTCIceServer[];
+    }
   } catch {
     // 沒有部署設定檔或格式錯 → 完全交給個人層
   }
@@ -107,7 +120,11 @@ function configPath(): string {
 
 function readPersonal(): { data: Partial<TeacherConfig>; tracing: DeployTracing; existed: boolean } {
   let data: Partial<TeacherConfig> = {};
-  let tracing: DeployTracing = { appliedDeployServerUrl: null, appliedDeployClassId: null };
+  let tracing: DeployTracing = {
+    appliedDeployServerUrl: null,
+    appliedDeployClassId: null,
+    appliedDeployIceServers: null,
+  };
   let existed = true;
   try {
     const raw = JSON.parse(fs.readFileSync(configPath(), 'utf8')) as Partial<TeacherConfig> & Record<string, unknown>;
@@ -115,6 +132,7 @@ function readPersonal(): { data: Partial<TeacherConfig>; tracing: DeployTracing;
     tracing = {
       appliedDeployServerUrl: typeof raw.appliedDeployServerUrl === 'string' ? raw.appliedDeployServerUrl : null,
       appliedDeployClassId: typeof raw.appliedDeployClassId === 'string' ? raw.appliedDeployClassId : null,
+      appliedDeployIceServers: Array.isArray(raw.appliedDeployIceServers) ? raw.appliedDeployIceServers : null,
     };
   } catch {
     // 檔案不存在或損毀都回到預設值，不要讓老師卡在無法啟動
@@ -196,6 +214,13 @@ export function getConfig(): TeacherConfig {
     }
   }
 
+  // 部署層的 iceServers：有設定時壓過個人層
+  if (deploy.iceServers !== undefined) {
+    next.iceServers = deploy.iceServers;
+    tracing.appliedDeployIceServers = deploy.iceServers;
+    dirty = true;
+  }
+
   next.serverUrlLocked = deploy.lockServerUrl;
   cache = next;
 
@@ -257,6 +282,15 @@ function sanitize(config: TeacherConfig): TeacherConfig {
     sfuAnnouncedIp: config.sfuAnnouncedIp ?? null,
     sfuRtpPortRange: config.sfuRtpPortRange ?? null,
     adaptiveQualityEnabled: Boolean(config.adaptiveQualityEnabled),
+    // ICE 伺服器：部署層可配置 STUN/TURN；沒有時使用內建預設
+    iceServers: Array.isArray(config.iceServers) && config.iceServers.length > 0
+      ? config.iceServers
+      : DEFAULTS.iceServers,
+    // 遠端接管即時畫面（monitor 軌）約束
+    monitorMaxFramerate: clampInt(config.monitorMaxFramerate, 1, 60),
+    monitorMaxWidth: clampInt(config.monitorMaxWidth, 0, 3840),
+    monitorMaxHeight: clampInt(config.monitorMaxHeight, 0, 2160),
+    monitorUseSfu: Boolean(config.monitorUseSfu),
   };
 }
 

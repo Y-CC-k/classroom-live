@@ -61,8 +61,6 @@ let demoPeer: string | null = null;
 /** 學生示範啟動前是否正在廣播（結束示範後提示可重開） */
 let demoWasBroadcasting = false;
 let demoFirstFrameLogged = false;
-let controlImgUrl: string | null = null;
-
 /** 釋放已經被換掉的鏡像修正器（務必在 `setLocalStream()` 之後呼叫）。 */
 function disposeStaleMirrors(): void {
   while (staleMirrors.length > 0) staleMirrors.pop()?.dispose();
@@ -169,13 +167,21 @@ const els = {
   btnSnapshots: $<HTMLButtonElement>('btn-snapshots'),
   controlLayer: $<HTMLDivElement>('control-layer'),
   controlLabel: $<HTMLSpanElement>('control-label'),
-  controlImg: $<HTMLImageElement>('control-img'),
+  controlImg: $<HTMLVideoElement>('control-img'),
   btnControlExit: $<HTMLButtonElement>('btn-control-exit'),
   btnIdleImage: $<HTMLButtonElement>('btn-idle-image'),
   idleImageLabel: $<HTMLSpanElement>('idle-image-label'),
 
   // 自適應畫質
   adaptiveQuality: $<HTMLInputElement>('adaptive-quality'),
+
+  // 進階 WebRTC 設定
+  iceServers: $<HTMLTextAreaElement>('ice-servers'),
+  monitorMaxFps: $<HTMLInputElement>('monitor-max-fps'),
+  monitorMaxWidth: $<HTMLInputElement>('monitor-max-width'),
+  monitorMaxHeight: $<HTMLInputElement>('monitor-max-height'),
+  monitorUseSfu: $<HTMLInputElement>('monitor-use-sfu'),
+  advancedToggle: $<HTMLButtonElement>('btn-advanced-toggle'),
 
   log: $<HTMLUListElement>('log'),
   btnClearLog: $<HTMLButtonElement>('btn-clear-log'),
@@ -798,6 +804,14 @@ async function connect(): Promise<void> {
     broadcastMode: config.broadcastMode,
     // 注入設定檔的定影幀品質（每次重連都套一次，避免 session 重建後回到預設）
     imgSharpQuality: config.imgSharpQuality,
+    // WebRTC ICE 伺服器（STUN/TURN）：部署層可在 config.json 配置，未設定則使用內建預設 STUN
+    iceServers: config.iceServers,
+    // 遠端接管即時畫面（monitor 軌）約束
+    monitorMaxFramerate: config.monitorMaxFramerate,
+    monitorMaxWidth: config.monitorMaxWidth,
+    monitorMaxHeight: config.monitorMaxHeight,
+    // 遠端接管即時畫面是否走 SFU（true = 經伺服器轉發，false = P2P 直接連線）
+    monitorUseSfu: config.monitorUseSfu,
     // 圖片廣播頻寬統計（每 10 秒一筆）：顯示在畫質設定下方的提示列
     onImageStats: stats => {
       els.pumpStats.hidden = false;
@@ -832,14 +846,31 @@ async function connect(): Promise<void> {
         return;
       }
       if (controllingPeer === peerId) {
-        // 接管中：顯示在控制視窗（先收掉上一幀的 URL，順序不能反）
-        if (controlImgUrl) URL.revokeObjectURL(controlImgUrl);
-        controlImgUrl = frame.url;
-        els.controlImg.src = frame.url;
+        // 接管中：即時畫面由 WebRTC monitor 軌（onMonitorFrame）顯示，
+        // 這裡的 JPEG 幀不再使用，直接釋放避免浪費頻寬。
+        URL.revokeObjectURL(frame.url);
         return;
       }
       if (monitorWall?.isVisible) monitorWall.handleWatchFrame(peerId, frame);
       else URL.revokeObjectURL(frame.url);
+    },
+    // 遠端接管即時畫面（WebRTC monitor 軌）：學生端 → 教師端
+    onMonitorFrame: (peerId, stream) => {
+      if (controllingPeer === peerId) {
+        // 接管中：顯示即時視訊軌在控制視窗（取代 JPEG 幀）
+        // controlImg 是 <img> 元素，用 createObjectURL 將 MediaStream 轉為可顯示的 blob URL
+        // 清掉舊的軌道（防止上一個 stream 的軌道殘留）
+        if (els.controlImg.srcObject) {
+          for (const track of (els.controlImg.srcObject as MediaStream).getTracks()) track.stop();
+        }
+        els.controlImg.srcObject = stream;
+        els.controlImg.hidden = false;
+        void els.controlImg.play().catch(() => undefined);
+        log('info', `接管即時畫面：${peerId}`);
+      } else {
+        // 非接管狀態下收到即時畫面，停止軌道避免浪費
+        for (const track of stream.getTracks()) track.stop();
+      }
     },
     onStatus: (status, detail) => {
       switch (status) {
@@ -993,16 +1024,6 @@ function bindEvents(): void {
       // ── 送檔／升級 分支 ──
       if (!session?.isConnected) {
         log('warn', '尚未連線；請先按「連線」再送檔。');
-        return;
-      }
-      const pack = files.length === 1 ? files.find(file => isUpgradePackage(file.name)) : undefined;
-      if (pack) {
-        const count = session.sendUpgrade(pack);
-        if (count > 0) {
-          log('info', `偵測到升級包 ${pack.name}：已送出給 ${count} 台；各台寫入成功會自動套用並重啟。`);
-        } else {
-          log('warn', '沒有學生機可升級（檔案通道尚未連上任何一台）。');
-        }
         return;
       }
       const count = session.sendFiles(files);
@@ -1480,6 +1501,66 @@ function bindEvents(): void {
     log(enabled ? 'info' : 'info', enabled ? '已啟用自適應畫質（網路擁塞時自動降低畫質）' : '已停用自適應畫質');
   });
 
+  // 進階 WebRTC 設定：摺疊／展開
+  const advancedSection = document.querySelector('.advanced-section');
+  const isCollapsed = sessionStorage.getItem('classroom-advanced-collapsed') !== '0';
+  if (isCollapsed) {
+    advancedSection?.classList.add('collapsed');
+  }
+  els.advancedToggle.addEventListener('click', () => {
+    const collapsed = advancedSection?.classList.toggle('collapsed');
+    sessionStorage.setItem('classroom-advanced-collapsed', collapsed ? '1' : '0');
+  });
+
+  // 進階 WebRTC 設定：ICE 伺服器
+  els.iceServers.addEventListener('change', () => {
+    const raw = els.iceServers.value.trim();
+    if (!raw) {
+      void window.teacherApi.saveConfig({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+      log('info', 'ICE 伺服器已重設為內建預設 STUN');
+      return;
+    }
+    try {
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) throw new Error('需為 JSON 陣列');
+      void window.teacherApi.saveConfig({ iceServers: parsed });
+      log('info', `ICE 伺服器已更新：${parsed.length} 個伺服器`);
+    } catch (error) {
+      log('warn', `ICE 伺服器格式錯誤，未儲存：${error instanceof Error ? error.message : String(error)}`);
+    }
+  });
+
+  // 遠端接管截圖約束：幀率
+  els.monitorMaxFps.addEventListener('change', () => {
+    const fps = Number(els.monitorMaxFps.value) || 10;
+    void window.teacherApi.saveConfig({ monitorMaxFramerate: fps });
+    log('info', `遠端接管幀率上限已設為 ${fps} fps`);
+  });
+
+  // 遠端接管截圖約束：寬度
+  els.monitorMaxWidth.addEventListener('change', () => {
+    const width = Number(els.monitorMaxWidth.value) || 0;
+    void window.teacherApi.saveConfig({ monitorMaxWidth: width });
+    log('info', `遠端接管寬度上限已設為 ${width === 0 ? '不限' : width + 'px'}`);
+  });
+
+  // 遠端接管截圖約束：高度
+  els.monitorMaxHeight.addEventListener('change', () => {
+    const height = Number(els.monitorMaxHeight.value) || 0;
+    void window.teacherApi.saveConfig({ monitorMaxHeight: height });
+    log('info', `遠端接管高度上限已設為 ${height === 0 ? '不限' : height + 'px'}`);
+  });
+
+  // 遠端接管即時畫面傳輸模式：P2P 或 SFU
+  els.monitorUseSfu.addEventListener('change', () => {
+    const useSfu = els.monitorUseSfu.checked;
+    void window.teacherApi.saveConfig({ monitorUseSfu: useSfu });
+    log(
+      'info',
+      `遠端接管即時畫面已設為 ${useSfu ? 'SFU（經伺服器轉發）' : 'P2P（直接連線）'}`
+    );
+  });
+
   els.btnStart.addEventListener('click', () => {
     void startBroadcast();
   });
@@ -1518,8 +1599,8 @@ function bindEvents(): void {
 /** 正規化滑鼠座標（相對 control-img 的 contain 顯示區） */
 function controlNormalized(e: PointerEvent): { x: number; y: number } {
   const rect = els.controlImg.getBoundingClientRect();
-  const nw = els.controlImg.naturalWidth;
-  const nh = els.controlImg.naturalHeight;
+  const nw = els.controlImg.videoWidth;
+  const nh = els.controlImg.videoHeight;
   const srcAr = nw > 0 && nh > 0 ? nw / nh : 16 / 9;
   const boxAr = rect.width / Math.max(1, rect.height);
   let drawW = rect.width;
@@ -1540,12 +1621,12 @@ function controlNormalized(e: PointerEvent): { x: number; y: number } {
 }
 
 /** 進入遠端接管：該台切 control 模式＋高頻監看（1 秒/張），教師鍵鼠轉發 */
-function takeControl(peerId: string, name: string): void {
+async function takeControl(peerId: string, name: string): Promise<void> {
   if (!session?.isConnected) {
     log('warn', '尚未連線。');
     return;
   }
-  if (!session.controlStart(peerId)) {
+  if (!(await session.controlStart(peerId))) {
     log('warn', '接管失敗：控制通道尚未連上這台。');
     return;
   }
@@ -1558,23 +1639,25 @@ function takeControl(peerId: string, name: string): void {
   els.controlLabel.textContent = '🎮 接管中：' + name;
   els.controlImg.src = '';
   void window.teacherApi.setFullscreen(true);
-  // 高頻監看該台（1 秒/張），畫面即時性優先
-  session.watchStudents([peerId], 1000);
+  // 即時畫面由 WebRTC monitor 軌（onMonitorFrame）顯示，
+  // 不再需要 JPEG watch 通道（節省頻寬）
   log('info', `已開始遠端接管 ${name}：你的鍵鼠操作將直接作用在該機。ESC 或按「離開」結束。`);
 }
 
 /** 離開遠端接管 */
 function exitControl(): void {
   if (!controllingPeer) return;
-  if (controlImgUrl) {
-    URL.revokeObjectURL(controlImgUrl);
-    controlImgUrl = null;
+  // 停止 WebRTC 即時畫面軌道
+  if (els.controlImg.srcObject) {
+    for (const track of (els.controlImg.srcObject as MediaStream).getTracks()) track.stop();
+    els.controlImg.srcObject = null;
   }
   const name = session?.students().find(s => s.info.id === controllingPeer)?.info.name ?? controllingPeer;
   session?.controlStop(controllingPeer);
   controllingPeer = null;
   els.controlLayer.hidden = true;
   els.controlImg.src = '';
+  els.controlImg.hidden = true;
   void window.teacherApi.setFullscreen(false);
   log('info', `已離開遠端接管（${name}）。`);
 }
@@ -1593,8 +1676,9 @@ function startDemo(peerId: string, name: string): void {
   // 真實桌面——若它也切到接收模式，螢幕變黑後被自己的螢幕捕獲拍到，
   // 轉發全班全黑（自拍迴路）。
   session.demoBroadcast(true, peerId);
-  // 若示範機縮在系統匣，Chromium 停止其畫面合成會上傳黑幀：還原它的視窗
-  session.sendCtl(peerId, { t: 'minimize', on: false });
+  // 示範時把示範機的學生機視窗收進系統匣，不遮蔽學生桌面。
+  // （學生機 backgroundThrottling 已停用，縮在系統匣時畫面上傳照常運作。）
+  session.sendCtl(peerId, { t: 'minimize', on: true });
   // 示範者高頻上傳（0.7 秒/張，走現有監看上傳路徑）
   const watchOk = session.watchStudent(peerId, true, 700);
   if (!watchOk) log('warn', '[demo] 上傳啟動失敗：示範者的控制通道未開（無法開始示範）');
@@ -1699,6 +1783,12 @@ async function boot(): Promise<void> {
   fillQualityPresets();
   renderQualityControls();
   els.adaptiveQuality.checked = config.adaptiveQualityEnabled;
+  // 進階 WebRTC 設定
+  els.iceServers.value = JSON.stringify(config.iceServers ?? [], null, 2);
+  els.monitorMaxFps.value = String(config.monitorMaxFramerate ?? 10);
+  els.monitorMaxWidth.value = String(config.monitorMaxWidth ?? 0);
+  els.monitorMaxHeight.value = String(config.monitorMaxHeight ?? 0);
+  els.monitorUseSfu.checked = config.monitorUseSfu;
   log(
     'info',
     `目前畫質：${qualityPresetDef(config.qualityPreset)?.label ?? '自訂'}（${config.maxFramerate} fps · ` +

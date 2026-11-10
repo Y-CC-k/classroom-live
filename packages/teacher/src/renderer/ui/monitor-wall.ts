@@ -14,39 +14,20 @@
 
 import { TeacherSession } from '../webrtc/index.js';
 
-/** 監控牆格子數對應的 CSS grid 欄數 */
-const COLUMNS_FOR_COUNT: Record<number, string> = {
-  1: '1fr',
-  2: '1fr 1fr',
-  3: '1fr 1fr 1fr',
-  4: '1fr 1fr 1fr 1fr',
-  5: '1fr 1fr 1fr 1fr 1fr',
-  6: '1fr 1fr 1fr 1fr 1fr 1fr',
-  7: 'repeat(4, 1fr)',
-  8: 'repeat(4, 1fr)',
-  9: 'repeat(3, 1fr)',
-  10: 'repeat(5, 1fr)',
-  11: 'repeat(5, 1fr)',
-  12: 'repeat(6, 1fr)',
-  13: 'repeat(6, 1fr)',
-  14: 'repeat(6, 1fr)',
-  15: 'repeat(5, 1fr)',
-  16: 'repeat(4, 1fr)',
-};
-
 /**
  * 依監看台數決定送圖節奏與幀寬上限。
  *
- * 台數多時延遲的兩個來源：頻寬總量與主執行緒解碼量。牆上格子實際只有
- * 200–500px 寬，收 960px 幀是純浪費；間隔也隨台數放寬，把「每秒湧入的
- * 張數×位元組」壓在教室網路舒服的範圍（配合學生端錯開相位，不會爆量）。
+ * 監控牆統一採「每 3 秒一張」以上的節奏（不傳每秒多張），避免頻寬與
+ * 主執行緒解碼爆量。台數多時幀寬再縮小，牆上格子實際只有 200–500px
+ * 寬，收 960px 幀是純浪費；間隔隨台數放寬，把「每秒湧入的張數×位元組」
+ * 壓在教室網路舒服的範圍（配合學生端錯開相位，不會爆量）。
  *
  * 頻寬估算（480px、q0.62 一張約 10–20KB）：
  *   16 台 × 4 秒 ≈ 60–80 KB/s（約 0.6 Mbps）
  *   30 台 × 5 秒 ≈ 60–120 KB/s（約 1 Mbps）——960px/3 秒時是 3+ Mbps
  */
 const WALL_PARAMS_FOR_COUNT = (count: number): { intervalMs: number; maxWidth: number } => {
-  if (count <= 4) return { intervalMs: 3000, maxWidth: 960 }; // 格子大，維持原本的清楚度
+  if (count <= 4) return { intervalMs: 3000, maxWidth: 960 }; // 每 3 秒一張，格子大，維持清楚度
   if (count <= 9) return { intervalMs: 3000, maxWidth: 640 };
   if (count <= 16) return { intervalMs: 4000, maxWidth: 480 };
   return { intervalMs: 5000, maxWidth: 480 };
@@ -91,10 +72,15 @@ const WALL_STYLE = `
   opacity: 0.6;
 }
 .wall-cell img {
-  width: 100%;
-  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
   object-fit: contain;
   display: block;
+  margin: auto;
+  /* 圖片切換時淡入淡出，避免瞬間閃爍 */
+  transition: opacity 0.25s ease-in-out;
 }
 .wall-cell-name {
   padding: 4px 6px;
@@ -211,42 +197,80 @@ class WallCell {
   /** 更新畫面（來自 onWatchFrame 回調） */
   updateFrame(frame: { url: string; width: number; height: number; seq: number; blob: Blob }): void {
     this.lastBlob = frame.blob;
-    // 釋放舊的 blob URL
-    if (this.currentUrl) {
-      URL.revokeObjectURL(this.currentUrl);
-    }
-    this.currentUrl = frame.url;
     this.lastFrameAt = Date.now();
-    this.img.src = frame.url;
     this.element.classList.remove('inactive');
     this.element.classList.add('active');
-    this.metaEl.textContent = `第 ${frame.seq} 張 · ${frame.width}×${frame.height}`;
+    // 不顯示張數及畫面大小
+    this.metaEl.textContent = '';
+
+    // Crossfade：先淡出當前圖，新圖載入後再淡入，
+    // 避免切換瞬間出現空白/黑色閃爍。
+    this.img.style.opacity = '0';
+    this.img.src = frame.url;
+
+    const oldUrl = this.currentUrl;
+    this.currentUrl = frame.url;
+
+    const onLoaded = () => {
+      this.img.style.opacity = '1';
+      this.img.removeEventListener('load', onLoaded);
+      this.img.removeEventListener('error', onLoaded);
+      // 新圖顯示後再釋放舊 blob URL，避免記憶體洩漏
+      if (oldUrl) {
+        try {
+          URL.revokeObjectURL(oldUrl);
+        } catch {
+          /* 已被釋放或無效，忽略 */
+        }
+      }
+    };
+    if (this.img.complete && this.img.naturalWidth > 0) {
+      onLoaded();
+    } else {
+      this.img.addEventListener('load', onLoaded, { once: true });
+      this.img.addEventListener('error', onLoaded, { once: true });
+    }
   }
 
   /** 設定為待機（沒有畫面） */
   setIdle(): void {
     this.lastBlob = null;
-    this.img.src = '';
-    this.element.classList.remove('active');
-    this.element.classList.add('inactive');
-    this.metaEl.textContent = '未監看';
-    if (this.currentUrl) {
-      URL.revokeObjectURL(this.currentUrl);
-      this.currentUrl = null;
-    }
+    // 淡出後再清空圖片，避免瞬間閃爍
+    this.img.style.opacity = '0';
+    setTimeout(() => {
+      this.img.src = '';
+      this.element.classList.remove('active');
+      this.element.classList.add('inactive');
+      this.metaEl.textContent = '未監看';
+      if (this.currentUrl) {
+        try {
+          URL.revokeObjectURL(this.currentUrl);
+        } catch {
+          /* 忽略 */
+        }
+        this.currentUrl = null;
+      }
+    }, 250);
   }
 
   /** 標記為離線（逾時未收到幀）：灰底＋明確文字，不再像是「應該有影像」 */
   markOffline(): void {
     this.lastBlob = null;
-    if (this.currentUrl) {
-      URL.revokeObjectURL(this.currentUrl);
-      this.currentUrl = null;
-    }
-    this.img.src = '';
-    this.element.classList.remove('active');
-    this.element.classList.add('inactive');
-    this.metaEl.textContent = '訊號中斷';
+    this.img.style.opacity = '0';
+    setTimeout(() => {
+      if (this.currentUrl) {
+        try {
+          URL.revokeObjectURL(this.currentUrl);
+        } catch {
+          /* 忽略 */
+        }
+        this.currentUrl = null;
+      }
+      this.img.src = '';
+      this.element.classList.remove('active');
+      this.element.classList.add('inactive');
+      this.metaEl.textContent = '訊號中斷';
+    }, 250);
   }
 
   /** 移除格子 */
@@ -412,24 +436,27 @@ export class MonitorWall {
     }
   }
 
-  /** 根據 cells 數量調整 grid 欄數 */
+  /** 根據 cells 數量與容器寬度動態調整 grid 欄數 */
   private renderGrid(): void {
     const count = this.cells.size;
     if (count === 0) {
       this.container.style.gridTemplateColumns = '1fr';
       return;
     }
-    // 找最接近的欄數（不超過 6）
-    const entries = Object.entries(COLUMNS_FOR_COUNT) as [string, string][];
-    for (const [nStr, template] of entries) {
-      const n = Number(nStr);
-      if (count <= n) {
-        this.container.style.gridTemplateColumns = template;
-        return;
-      }
-    }
-    // 超過 16 台：固定 6 欄
-    this.container.style.gridTemplateColumns = 'repeat(6, 1fr)';
+
+    // 容器寬度（沒有則先用預設 1200px 估算）
+    const containerWidth = this.container.clientWidth || 1200;
+    // 每格最小寬度：小於 240px 就不再增加欄數，避免格子擠在一起看不清
+    const minCellWidth = 240;
+    // 理論上可放的欄數
+    let idealCols = Math.floor(containerWidth / minCellWidth);
+    if (idealCols < 1) idealCols = 1;
+    if (idealCols > 6) idealCols = 6;
+
+    // 欄數不能超過格子數
+    const cols = Math.min(idealCols, count);
+
+    this.container.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
   }
 
   /** 處理收到的監看幀 */

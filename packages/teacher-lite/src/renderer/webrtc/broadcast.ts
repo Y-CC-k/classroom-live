@@ -30,6 +30,21 @@ export class BroadcastManager {
   private sfuSendTransportId: string | null = null;
   private sfuProducer: RTCRtpSender | null = null;
 
+  // ── SFU 接收學生端即時畫面（遠端接管用） ──
+  private sfuRecvTransport: RTCPeerConnection | null = null;
+  private sfuRecvTransportId: string | null = null;
+  /** 學生 peerId → SFU producerId（學生端 produce 的視訊軌） */
+  private readonly studentProducers = new Map<string, string>();
+  /** 學生 peerId → consumer 資訊（教師端 consume 學生畫面） */
+  private readonly studentConsumers = new Map<string, {
+    consumerId: string;
+    producerId: string;
+    kind: string;
+    rtpParameters: any;
+    type: string;
+    producerPaused: boolean;
+  }>();
+
   // ── 螢幕監看的幀組裝狀態（one per watched peer） ──
   private readonly watchFrames = new Map<
     string,
@@ -55,6 +70,15 @@ export class BroadcastManager {
       stats => this.options.onImageStats?.(stats)
     );
     this.pump.setSharpQuality(options.imgSharpQuality ?? 0.85);
+  }
+
+  /** 取得 WebRTC 連線設定：優先使用部署層配置的 iceServers，否則內建預設 STUN */
+  private getRTCConfig(): RTCConfiguration {
+    return {
+      iceServers: this.options.iceServers ?? [{ urls: 'stun:stun.l.google.com:19302' }],
+      bundlePolicy: 'max-bundle',
+      rtcpMuxPolicy: 'require',
+    };
   }
 
   // ─────────────────────────── 連線生命週期 ───────────────────────────
@@ -137,6 +161,21 @@ export class BroadcastManager {
       this.sfuSendTransport.close();
       this.sfuSendTransport = null;
     }
+    // 關閉所有學生 consumer 與 recv transport
+    for (const [peerId] of this.studentConsumers) {
+      try {
+        this.stopSfuConsumeStudent(peerId);
+      } catch {
+        /* 忽略 */
+      }
+    }
+    this.studentConsumers.clear();
+    this.studentProducers.clear();
+    if (this.sfuRecvTransport) {
+      this.sfuRecvTransport.close();
+      this.sfuRecvTransport = null;
+    }
+    this.sfuRecvTransportId = null;
   }
 
   // ─────────────────────────── SFU 專用方法 ───────────────────────────
@@ -156,16 +195,152 @@ export class BroadcastManager {
     }
   }
 
-  /** 處理 SFU transport 建立回應 */
+  /** 處理 SFU transport 建立回應（send 與 recv 共用） */
   private handleSfuTransportCreated(message: { transportId: string; transportOptions: SfuTransportOptions }): void {
-    // 儲存 transport ID
-    this.sfuSendTransportId = message.transportId;
-    this.options.onLog('info', `SFU transport 建立：${message.transportId}`);
+    if (!this.sfuSendTransportId) {
+      // 這是 send transport（教師端廣播）
+      this.sfuSendTransportId = message.transportId;
+      this.options.onLog('info', `SFU send transport 建立：${message.transportId}`);
+    } else if (!this.sfuRecvTransportId) {
+      // 這是 recv transport（教師端接收學生畫面）
+      this.sfuRecvTransportId = message.transportId;
+      this.options.onLog('info', `SFU recv transport 建立：${message.transportId}`);
+    }
   }
 
   /** 處理 SFU produce 回應 */
   private handleSfuProduced(message: { transportId: string; producerId: string }): void {
     this.options.onLog('info', `SFU producer 建立成功：${message.producerId}`);
+  }
+
+  // ── SFU 接收學生端即時畫面（遠端接管用） ──
+
+  /** 建立 SFU recv transport（教師端從 SFU 接收學生端視訊） */
+  public async createSfuRecvTransport(): Promise<void> {
+    if (!this.client) return;
+    if (this.sfuRecvTransport) return; // 已有 recv transport
+
+    try {
+      this.client.send({
+        t: 'sfu-create-transport',
+        classId: this.options.classId,
+        direction: 'recv',
+      });
+    } catch (error) {
+      this.options.onLog('error', `建立 SFU recv transport 失敗：${describe(error)}`);
+    }
+  }
+
+  /** 連線 SFU recv transport（設定 DTLS 參數） */
+  public async connectSfuRecvTransport(dtlsParameters: any): Promise<void> {
+    if (!this.sfuRecvTransportId || !this.client) return;
+
+    try {
+      this.client.send({
+        t: 'sfu-connect-transport',
+        classId: this.options.classId,
+        transportId: this.sfuRecvTransportId!,
+        dtlsParameters,
+      });
+    } catch (error) {
+      this.options.onLog('error', `連線 SFU recv transport 失敗：${describe(error)}`);
+    }
+  }
+
+  /** 教師端 consume 學生端的視訊軌（遠端接管用） */
+  public async startSfuConsumeStudent(peerId: string, producerId: string): Promise<void> {
+    if (!this.sfuRecvTransport || !this.client) return;
+    if (this.studentConsumers.has(peerId)) return; // 已在 consume
+
+    // 設定 ontrack 處理器：收到 SFU 轉發的學生視訊軌時顯示
+    const pc = this.sfuRecvTransport;
+    pc.ontrack = (event: RTCTrackEvent) => {
+      const track = event.track;
+      if (track.kind !== 'video') return;
+      this.options.onMonitorFrame?.(peerId, event.streams[0] ?? new MediaStream([track]));
+      this.options.onLog('info', `收到學生 ${peerId} 的 SFU 即時畫面軌`);
+    };
+
+    try {
+      this.client.send({
+        t: 'sfu-consume',
+        classId: this.options.classId,
+        transportId: this.sfuRecvTransportId!,
+        producerId,
+        rtpCapabilities: RTCRtpReceiver.getCapabilities?.('video') ?? {},
+        appData: { consumerPeerId: peerId },
+      });
+    } catch (error) {
+      this.options.onLog('error', `SFU consume 學生 ${peerId} 失敗：${describe(error)}`);
+    }
+  }
+
+  /** 教師端停止 consume 學生端的視訊軌 */
+  public stopSfuConsumeStudent(peerId: string): void {
+    this.studentConsumers.delete(peerId);
+    this.studentProducers.delete(peerId);
+    this.options.onLog('info', `停止消費學生 ${peerId} 的即時畫面`);
+  }
+
+  /** 處理 SFU transport 連線成功（recv transport 已與 SFU 建立 DTLS 連線） */
+  public handleSfuTransportConnected(message: { transportId: string; dtlsParameters: any }): void {
+    if (message.transportId === this.sfuRecvTransportId) {
+      this.options.onLog('info', `SFU recv transport 已連線：${message.transportId}`);
+    }
+  }
+
+  /** 處理 SFU consume 回應：教師端成功消費學生端的視訊軌 */
+  public handleSfuConsumed(message: {
+    transportId: string;
+    consumerId: string;
+    producerId: string;
+    kind: string;
+    rtpParameters: any;
+    type: string;
+    producerPaused: boolean;
+  }): void {
+    const { consumerId, producerId } = message;
+
+    // 找出對應的學生 peerId（透過 appData 的 consumerPeerId，或從 studentProducers 反查）
+    let peerId = '';
+    for (const [pid, pid2] of this.studentProducers.entries()) {
+      if (pid2 === producerId) {
+        peerId = pid;
+        break;
+      }
+    }
+    if (!peerId) {
+      this.options.onLog('warn', `SFU consumed 但找不到對應學生：${producerId}`);
+      return;
+    }
+
+    // 記錄 consumer 資訊（track 會在 ontrack 事件中設定）
+    this.studentConsumers.set(peerId, {
+      consumerId,
+      producerId,
+      kind: message.kind,
+      rtpParameters: message.rtpParameters,
+      type: message.type,
+      producerPaused: message.producerPaused,
+    });
+
+    this.options.onLog('info', `SFU consumer 已建立：${consumerId} (producer: ${producerId}, 學生: ${peerId})`);
+  }
+
+  /** 處理 SFU producer 關閉：學生端停止推流，停止對應的 consume */
+  public handleSfuProducerClosed(message: { producerId: string }): void {
+    const { producerId } = message;
+    let peerId = '';
+    for (const [pid, pid2] of this.studentProducers.entries()) {
+      if (pid2 === producerId) {
+        peerId = pid;
+        break;
+      }
+    }
+    if (peerId) {
+      this.stopSfuConsumeStudent(peerId);
+      this.options.onLog('warn', `學生 ${peerId} 的 SFU producer 已關閉，停止接收畫面`);
+    }
   }
 
   /** 開始 SFU produce（教師端送流到 SFU） */
@@ -328,7 +503,7 @@ export class BroadcastManager {
     if (!link || !this.client) return;
     if (link.broadcast) return;
 
-    const pc = new RTCPeerConnection({ iceServers: [], bundlePolicy: 'max-bundle', rtcpMuxPolicy: 'require' });
+    const pc = new RTCPeerConnection(this.getRTCConfig());
     link.broadcast = pc;
     link.state.broadcastState = 'new';
 
@@ -495,15 +670,6 @@ export class BroadcastManager {
         }
         return;
       }
-      if (parsed.t === 'update-result') {
-        const name = this.links.get(peerId)?.state.info.name ?? peerId;
-        if (parsed.ok) {
-          this.options.onLog('info', `${name} 升級套用：${parsed.message ?? '已開始套用'}`);
-        } else {
-          this.options.onLog('warn', `${name} 升級套用被擋：${parsed.message ?? '未知原因'}`);
-        }
-        return;
-      }
       if (parsed.t === 'watch-frame-hdr') {
         if (parsed.size <= 0 || parsed.size > WATCH_MAX_FRAME_BYTES) return;
         this.watchFrames.set(peerId, {
@@ -542,12 +708,6 @@ export class BroadcastManager {
           if (/^待機畫面\./i.test(parsed.name ?? '')) {
             this.sendCtl(peerId, { t: 'idle-image-applied' });
             this.options.onLog('info', `${link.state.info.name} 待機圖已套用`);
-          }
-          // 熱更新：若收到的是升級包（檔名含「升級包」的 .zip），通知學生機套用並重啟
-          const isUpgradePkg = parsed.name.toLowerCase().endsWith('.zip') && parsed.name.includes('升級包');
-          if (isUpgradePkg) {
-            this.sendCtl(peerId, { t: 'apply-update' });
-            this.options.onLog('info', `${link.state.info.name} 升級包就緒，已通知套用（本機即將重啟）`);
           }
         } else {
           // 記下拒收序號：deliverFiles 每送一片前都會檢查並中止
@@ -624,8 +784,28 @@ export class BroadcastManager {
         );
         break;
       }
+      case 'sfu-transport-connected': {
+        this.handleSfuTransportConnected(message as unknown as { transportId: string; dtlsParameters: any });
+        break;
+      }
       case 'sfu-produced': {
         this.handleSfuProduced(message as unknown as { transportId: string; producerId: string });
+        break;
+      }
+      case 'sfu-consumed': {
+        this.handleSfuConsumed(message as unknown as {
+          transportId: string;
+          consumerId: string;
+          producerId: string;
+          kind: string;
+          rtpParameters: any;
+          type: string;
+          producerPaused: boolean;
+        });
+        break;
+      }
+      case 'sfu-producer-closed': {
+        this.handleSfuProducerClosed(message as unknown as { producerId: string });
         break;
       }
       default:
@@ -652,6 +832,8 @@ export class BroadcastManager {
         evt: null,
         file: null,
         pendingBroadcastIce: [],
+        monitor: null,
+        pendingMonitorIce: [],
       });
     }
     // 學生一加入就建立廣播連線：ctl／evt 資料通道掛在這條連線上，
@@ -662,24 +844,129 @@ export class BroadcastManager {
 
   private async handleSignal(from: string, payload: any): Promise<void> {
     const link = this.links.get(from);
-    if (!link || payload.kind !== 'broadcast') return;
+    if (!link) return;
 
-    if ('description' in payload && payload.description.type === 'answer') {
-      const pc = link.broadcast;
-      if (!pc) return;
+    if (payload.kind === 'broadcast') {
+      if ('description' in payload && payload.description.type === 'answer') {
+        const pc = link.broadcast;
+        if (!pc) return;
+        await pc.setRemoteDescription(payload.description);
+        for (const candidate of link.pendingBroadcastIce.splice(0)) {
+          await pc.addIceCandidate(candidate).catch(() => undefined);
+        }
+      } else if ('ice' in payload) {
+        const pc = link.broadcast;
+        if (!pc) return;
+        if (pc.remoteDescription) {
+          await pc.addIceCandidate(payload.ice).catch(() => undefined);
+        } else {
+          link.pendingBroadcastIce.push(payload.ice);
+        }
+      }
+    } else if (payload.kind === 'monitor') {
+      await this.handleMonitorSignal(from, payload, link);
+    } else if (payload.kind === 'sfu') {
+      if (payload.type === 'producer-ready') {
+        const { producerId } = payload as { producerId: string };
+        // 記錄學生端的 producerId
+        this.studentProducers.set(from, producerId);
+        this.options.onLog('info', `學生 ${from} 的 SFU producer 已就緒：${producerId}`);
+        // 建立 recv transport（若尚未建立）並 consume 該 producer
+        void this.createSfuRecvTransport().then(() => {
+          void this.startSfuConsumeStudent(from, producerId);
+        });
+      }
+    }
+  }
+
+  // ─────────────────────────── 學生 → 教師 即時畫面（monitor） ───────────────────────────
+
+  /**
+   * 建立／取得與指定學生的 monitor 連線（教師端為 answerer）。
+   * 學生端會作為 offerer，把本機螢幕視訊軌送過來。
+   */
+  public async startMonitorLink(peerId: string): Promise<void> {
+    const link = this.links.get(peerId);
+    if (!link || !this.client) return;
+    if (link.monitor) return; // 已有連線
+
+    const pc = new RTCPeerConnection(this.getRTCConfig());
+    link.monitor = pc;
+
+    // 接收學生端的視訊軌
+    pc.ontrack = event => {
+      const track = event.track;
+      if (track.kind !== 'video') return;
+      this.options.onMonitorFrame?.(peerId, event.streams[0] ?? new MediaStream([track]));
+      this.options.onLog('info', `收到 ${link.state.info.name} 的即時畫面軌`);
+    };
+
+    pc.onicecandidate = event => {
+      if (!event.candidate) return;
+      this.client?.send({
+        t: 'signal',
+        to: peerId,
+        payload: { kind: 'monitor', ice: event.candidate.toJSON() },
+      });
+    };
+
+    pc.onconnectionstatechange = () => {
+      if (pc.connectionState === 'failed') {
+        this.options.onLog('warn', `與 ${link.state.info.name} 的即時畫面連線失敗`);
+        this.stopMonitorLink(peerId);
+      }
+    };
+  }
+
+  /**
+   * 處理學生端發來的 monitor 信號（offer / ICE）。
+   * 教師端作為 answerer：設定遠端描述 → 創建 answer → 發回。
+   */
+  private async handleMonitorSignal(from: string, payload: any, link: Link): Promise<void> {
+    const pc = link.monitor;
+    if (!pc) return;
+
+    if ('description' in payload && payload.description.type === 'offer') {
       await pc.setRemoteDescription(payload.description);
-      for (const candidate of link.pendingBroadcastIce.splice(0)) {
+      for (const candidate of link.pendingMonitorIce.splice(0)) {
         await pc.addIceCandidate(candidate).catch(() => undefined);
       }
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+      this.client?.send({
+        t: 'signal',
+        to: from,
+        payload: { kind: 'monitor', description: { type: 'answer', sdp: answer.sdp } },
+      });
     } else if ('ice' in payload) {
-      const pc = link.broadcast;
-      if (!pc) return;
       if (pc.remoteDescription) {
         await pc.addIceCandidate(payload.ice).catch(() => undefined);
       } else {
-        link.pendingBroadcastIce.push(payload.ice);
+        link.pendingMonitorIce.push(payload.ice);
       }
     }
+  }
+
+  /** 關閉單一學生的 monitor 連線（遠端接管結束用）。 */
+  public stopMonitorLink(peerId: string): void {
+    const link = this.links.get(peerId);
+    if (!link) return;
+    try {
+      link.monitor?.close();
+    } catch {
+      /* 忽略 */
+    }
+    link.monitor = null;
+    link.pendingMonitorIce = [];
+  }
+
+  /** 取得指定學生的 monitor 視訊軌（供 UI 顯示即時畫面）。 */
+  public getMonitorTrack(peerId: string): MediaStreamTrack | null {
+    const link = this.links.get(peerId);
+    const pc = link?.monitor;
+    if (!pc) return null;
+    const receivers = pc.getReceivers().filter(r => r.track?.kind === 'video');
+    return receivers.length > 0 ? receivers[0]!.track ?? null : null;
   }
 
   // ─────────────────────────── 公開 API ───────────────────────────
@@ -777,6 +1064,7 @@ export class BroadcastManager {
       link.file?.close();
       link.img?.close();
       link.broadcast?.close();
+      link.monitor?.close();
     } catch {
       // 關閉時的例外不影響流程
     }
@@ -785,6 +1073,8 @@ export class BroadcastManager {
     link.evt = null;
     link.file = null;
     link.img = null;
+    link.monitor = null;
+    link.pendingMonitorIce = [];
   }
 
   // 需要從外部存取的私有屬性
@@ -795,5 +1085,19 @@ export class BroadcastManager {
 
   private isBroadcastTarget(peerId: string): boolean {
     return !this.broadcastTargets || this.broadcastTargets.has(peerId);
+  }
+
+  /** 取得遠端接管即時畫面（monitor 軌）的擷取約束，供教師端發送給學生端。 */
+  getMonitorConstraints(): { maxFramerate: number; maxWidth: number; maxHeight: number } {
+    return {
+      maxFramerate: this.options.monitorMaxFramerate,
+      maxWidth: this.options.monitorMaxWidth,
+      maxHeight: this.options.monitorMaxHeight,
+    };
+  }
+
+  /** 遠端接管即時畫面是否走 SFU。 */
+  getMonitorUseSfu(): boolean {
+    return Boolean(this.options.monitorUseSfu);
   }
 }

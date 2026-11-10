@@ -22,7 +22,17 @@ export type CtlMessage =
    * 收到 `control` 時學生端必須先確認 `agent.elevated === true`，
    * 否則回報 error（UIPI 會阻擋對提高權限視窗的注入）。
    */
-  | { t: 'mode'; mode: ControlMode }
+  | { t: 'mode'; mode: ControlMode; maxFramerate?: number; maxWidth?: number; maxHeight?: number; useSfu?: boolean }
+  /**
+   * 切換學生機狀態時，可選擇性帶上遠端接管即時畫面（monitor 軌）的擷取約束：
+   * - `maxFramerate`：螢幕擷取幀率上限（fps），預設 10
+   * - `maxWidth` / `maxHeight`：擷取解析度上限（px），0 = 不縮放
+   * - `useSfu`：遠端接管即時畫面是否走 SFU（教師端開啟後，學生端會透過 SFU send/produce 推流，
+   *   教師端則以 SFU consume 接收；預設 false = 走 P2P 直接連線）。跨網段或教師端需同時監看
+   *   多台學生畫面時建議開啟。
+   * 教師端發送 control 模式時會帶上這些值，學生端據此設定 getUserMedia 約束，
+   * 避免高解析度／高幀率螢幕擷取佔用過多 CPU 與頻寬。
+   */
   /**
    * 滑鼠絕對位置，**正規化到 0..1**（相對教師擷取到的畫面）。
    * 學生端再乘上自己的虛擬桌面尺寸，
@@ -41,9 +51,11 @@ export type CtlMessage =
    * `intervalMs` 是學生端送圖的間隔（預設 3000）；
    * `maxWidth` 是學生端送出幀的寬度上限（省略＝960）。監控牆台數多時
    * 會要求較小幀（480），格子只有 200-300px，收 960px 只是浪費頻寬與解碼。
+   * `maxHeight` 是送出幀的高度上限（省略＝不限制，僅依 maxWidth 等比例縮放）。
+   * 與 maxWidth 合用時，取較嚴格的縮放比例，避免畫面比例畸形或截圖不完整。
    * 幀走 **evt 通道**（JSON hdr → 裸分片 → end），與檔案通道同一套信封。
    */
-  | { t: 'watch'; on: boolean; intervalMs?: number; maxWidth?: number }
+  | { t: 'watch'; on: boolean; intervalMs?: number; maxWidth?: number; maxHeight?: number }
   /**
    * 更新學生機「待機（開機初始）畫面」的文字。
    * 學生端立即套用（未廣播時）並存進 config，下次開機也顯示。
@@ -105,12 +117,6 @@ export type CtlMessage =
    */
   | { t: 'shutdown'; delaySec: number }
   /**
-   * 熱更新：學生機解壓「最近經檔案通道收到的 zip」覆蓋 resources\app，
-   * 殺行程後重啟。教師端在檔案寫入成功（file-result）後才送這一條。
-   * 只含 JS 程式碼（不含 Electron 本體），所以不需要 UAC／不需要重新安裝。
-   */
-  | { t: 'apply-update' }
-  /**
    * 教師端「執行程式」：在學生機上啟動指定檔案（像檔案傳送送達後自己跑）。
    * 僅限啟動「已存在於學生機」的檔案（不帶內容）；.bat/.cmd 以 cmd /c 執行。
    */
@@ -154,7 +160,6 @@ export type EvtMessage =
   | { t: 'inject-failed'; message: string; ts: number }
   /** 檔案傳送結果回報（教師機 → 學生機檔案） */
   | { t: 'file-result'; id: string; name: string; ok: boolean; path?: string; message?: string }
-  | { t: 'update-result'; ok: boolean; stage: string; message?: string }
   /** 開機還原（UWF）執行結果：text 是給教師看的一行摘要 */
   | { t: 'uwf-result'; ok: boolean; text: string; rebooting?: boolean }
   /** 收檔資料夾清理結果（deleted = 刪除項數；ok=false 時 message 說明原因） */

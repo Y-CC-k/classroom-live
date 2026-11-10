@@ -196,6 +196,31 @@ export interface TeacherConfig {
    */
   adaptiveQualityEnabled: boolean;
   /**
+   * WebRTC ICE 伺服器（STUN/TURN），供 broadcast 與 monitor 連線 NAT 穿透用。
+   * 部署層（config.json）可在此設定，未設定時內建預設為 Google 公開 STUN。
+   */
+  iceServers: RTCIceServer[];
+  /**
+   * 遠端接管即時畫面（monitor 軌）的幀率上限（fps）。
+   * 避免學生機螢幕擷取佔用過高 CPU；建議 5～10，預設 10。
+   */
+  monitorMaxFramerate: number;
+  /**
+   * 遠端接管即時畫面（monitor 軌）的擷取寬度上限（px）。
+   * 0 = 不縮放，沿用學生機原始解析度。
+   */
+  monitorMaxWidth: number;
+  /**
+   * 遠端接管即時畫面（monitor 軌）的擷取高度上限（px）。
+   * 0 = 不縮放，沿用學生機原始解析度。
+   */
+  monitorMaxHeight: number;
+  /**
+   * 遠端接管即時畫面是否走 SFU（true = 經伺服器轉發，false = P2P 直接連線）。
+   * UI 可即時切換，切換後下次接管時生效。
+   */
+  monitorUseSfu: boolean;
+  /**
    * 部署設定（安裝目錄 config.json）把 serverUrl 鎖住了：UI 必須唯讀。
    * 這個欄位只會出現在 IPC 傳回值，不會寫進本機設定檔。
    */

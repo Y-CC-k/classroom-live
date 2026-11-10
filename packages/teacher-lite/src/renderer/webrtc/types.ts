@@ -31,11 +31,15 @@ export interface Link {
   file: RTCDataChannel | null;
   /** 圖片廣播通道（image 模式才會有資料流；通道一律先開好） */
   img: RTCDataChannel | null;
+  /** 學生 → 教師即時畫面（遠端接管時使用，學生是 offerer） */
+  monitor: RTCPeerConnection | null;
   /**
    * 遠端描述尚未設定前，先暫存 ICE candidate。
    * `addIceCandidate` 在 `setRemoteDescription` 之前會直接失敗。
    */
   pendingBroadcastIce: RTCIceCandidateInit[];
+  /** 監看連線（monitor）尚未設定遠端描述前的 ICE 候選暫存 */
+  pendingMonitorIce: RTCIceCandidateInit[];
 }
 
 /** 供外部掛鉤的事件回呼 */
@@ -72,10 +76,35 @@ export interface TeacherSessionOptions extends TeacherSessionEvents {
     peerId: string,
     frame: { url: string; width: number; height: number; seq: number; blob: Blob }
   ) => void;
+  /**
+   * 遠端接管即時畫面（WebRTC monitor 軌）：學生端 → 教師端
+   */
+  onMonitorFrame?: (peerId: string, stream: MediaStream) => void;
   // SFU 相關設定
   sfuServerUrl?: string;
   sfuAnnouncedIp?: string | null;
   sfuRtpPortRange?: { min: number; max: number } | null;
+  /** WebRTC ICE 伺服器（STUN/TURN），未設定則使用模組內建預設 */
+  iceServers?: RTCIceServer[];
+  /**
+   * 遠端接管即時畫面（monitor 軌）的幀率上限（fps）。
+   * 避免學生機螢幕擷取佔用過高 CPU；建議 5～10，預設 10。
+   */
+  monitorMaxFramerate: number;
+  /**
+   * 遠端接管即時畫面（monitor 軌）的擷取寬度上限（px）。
+   * 0 = 不縮放，沿用學生機原始解析度。
+   */
+  monitorMaxWidth: number;
+  /**
+   * 遠端接管即時畫面（monitor 軌）的擷取高度上限（px）。
+   * 0 = 不縮放，沿用學生機原始解析度。
+   */
+  monitorMaxHeight: number;
+  /**
+   * 遠端接管即時畫面是否走 SFU（true = 經伺服器轉發，false = P2P 直接連線）。
+   */
+  monitorUseSfu: boolean;
 }
 
 /** 監看幀的組裝狀態 */

@@ -1,6 +1,6 @@
 {
   "name": "@classroom/teacher-lite",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "教師機簡易版：廣播 + 秩序控制（移除監控牆／電子白板／遠端接管／截圖收藏）",
   "main": "dist/main/index.cjs",

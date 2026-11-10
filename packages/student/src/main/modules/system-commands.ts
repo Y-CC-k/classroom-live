@@ -70,21 +70,49 @@ export function registerSystemCommandsIpc(): void {
     }
     const args = Array.isArray(rawArgs) ? rawArgs.map(item => String(item)) : [];
     const ext = path.extname(target).toLowerCase();
+    const cwd = path.dirname(target);
     try {
       if (ext === '.bat' || ext === '.cmd') {
         spawn('cmd.exe', ['/c', target, ...args], {
-          cwd: path.dirname(target),
+          cwd,
           detached: true,
           stdio: 'ignore',
           windowsHide: false,
         }).unref();
       } else {
-        spawn(target, args, {
-          cwd: path.dirname(target),
+        const child = spawn(target, args, {
+          cwd,
           detached: true,
           stdio: 'ignore',
           windowsHide: false,
-        }).unref();
+        });
+        // spawn 失敗（如 CreateProcess 錯誤）是走 error 事件而非例外，
+        // 不掛監聽會「完全沒反應」：最常見是安裝程式需要 UAC（ERROR_ELEVATION_REQUIRED）、
+        // 系統不認得 .lnk 快捷方式與 .msi 安裝包。此時改走 ShellExecute：
+        // Windows 會顯示 UAC 權限提示、解析捷徑、正確帶起 msiexec。
+        child.on('error', error => {
+          const reason = error instanceof Error ? error.message.split('\n')[0] ?? '' : String(error);
+          console.warn(`[exec] 直接啟動失敗（${reason}），改以 ShellExecute 啟動：${target}`);
+          if (args.length > 0) {
+            // 走 cmd start 傳參數（ShellExecute；需要 UAC 時會提示）
+            const viaStart = spawn('cmd.exe', ['/c', 'start', '', target, ...args], {
+              cwd,
+              detached: true,
+              stdio: 'ignore',
+              windowsHide: true,
+            });
+            viaStart.on('error', err => {
+              console.error(`[exec] ShellExecute啟動也失敗：${err.message}`);
+            });
+            viaStart.unref();
+          } else {
+            void shell.openPath(target).then(msg => {
+              if (msg) console.error(`[exec] ShellExecute 啟動失敗：${msg}`);
+              else console.log(`[exec] 已以 ShellExecute 啟動：${target}`);
+            });
+          }
+        });
+        child.unref();
       }
       console.log(`[exec] 已啟動：${target}（${args.length} 個參數）`);
       return { ok: true };

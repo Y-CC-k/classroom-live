@@ -165,11 +165,22 @@ async function main() {
     const forwardedIce = await student.expect(m => m.t === 'signal');
     check('學生收到教師的 ICE', forwardedIce.payload.ice.candidate.includes('10.0.0.5'));
 
-    console.log('\n4. 教師廣播');
+    console.log('\n4. 教師廣播（lock）');
     teacher.send({ t: 'broadcast', payload: { mode: 'lock' } });
     const broadcast = await student.expect(m => m.t === 'broadcast');
     check('學生收到教師廣播', broadcast.payload.mode === 'lock');
     check('廣播標記來源為教師', broadcast.from === teacherId);
+
+    console.log('\n4b. 教師發送 mode: control 帶約束參數');
+    teacher.send({
+      t: 'broadcast',
+      payload: { mode: 'control', maxFramerate: 10, maxWidth: 1280, maxHeight: 720 },
+    });
+    const modeMsg = await student.expect(m => m.t === 'broadcast' && m.payload.mode === 'control');
+    check('學生收到 mode: control', modeMsg.payload.mode === 'control');
+    check('maxFramerate 正確轉發', modeMsg.payload.maxFramerate === 10);
+    check('maxWidth 正確轉發', modeMsg.payload.maxWidth === 1280);
+    check('maxHeight 正確轉發', modeMsg.payload.maxHeight === 720);
 
     // 教師不應該收到自己的廣播
     await wait(300);

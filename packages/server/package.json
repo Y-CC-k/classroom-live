@@ -1,6 +1,6 @@
 {
   "name": "@classroom/server",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "type": "module",
   "description": "教室伺服器：房間管理 + WebRTC 信令轉發",

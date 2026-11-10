@@ -55,7 +55,8 @@ export function showMonitorFrame(
   if (monitorUrl) URL.revokeObjectURL(monitorUrl);
   monitorUrl = frame.url;
   els.monitorImg.src = frame.url;
-  els.monitorMeta.textContent = `第 ${frame.seq} 張 · ${frame.width}×${frame.height} · 3 秒/張`;
+  // 不顯示張數及畫面大小
+  els.monitorMeta.textContent = '';
 }
 
 /** 開始監看勾選的那一台（單機功能列的「👁 監看」按鈕） */
@@ -89,7 +90,8 @@ export function toggleWatchChecked(session: TeacherSession): void {
   watchingPeer = peerId;
   els.monitorViewer.hidden = false;
   els.monitorLabel.textContent = `監看中：${student.info.name}`;
-  els.monitorMeta.textContent = '等待第一張畫面…（3 秒/張）';
+  // 不顯示張數及畫面大小
+  els.monitorMeta.textContent = '';
   els.log.prepend(document.createTextNode(`已開始監看 ${student.info.name}（每 3 秒一張，關閉浮動窗即停止）。`));
   renderStudents(session);
 }
