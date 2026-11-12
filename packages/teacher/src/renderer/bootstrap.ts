@@ -7,6 +7,7 @@ import { createMirrorFixer, type MirrorFixer } from './mirror.js';
 import { TeacherSession, describe } from './webrtc/index.js';
 import { MonitorWall } from './ui/monitor-wall.js';
 import { Whiteboard } from './ui/whiteboard.js';
+import { renderStudents as renderStudentCards } from './ui/student-grid.js';
 import { codeToVk } from '@classroom/protocol';
 
 /**
@@ -673,8 +674,8 @@ async function applyScene(scene: 'teach' | 'learn'): Promise<void> {
   renderStudents();
 }
 
-// 內嵌監控牆：10 秒定時同步——學生加入瞬間 ctl 未開的台，稍後自動補建格＋補看
-setInterval(() => monitorWall?.syncStudents(), 10_000);
+// 10 秒定時同步學生名單——學生加入瞬間 ctl 未開的台，稍後自動補建格＋補看
+setInterval(() => renderStudents(), 10_000);
 
 function renderStudents(): void {
   const students = session?.students() ?? [];
@@ -704,11 +705,15 @@ function renderStudents(): void {
   } else {
     els.scaleHint.textContent = '';
   }
-  // 內嵌監控牆：與名單同步（新台建格＋監看、離線台收格、ctl 未開的台稍後補看）
-  monitorWall?.syncStudents();
+  // 渲染學生卡片到中間區域 student-grid（每台一格，含勾選框＋狀態標籤）
+  renderStudentCards(session);
 
   // 正在監看的那台離線了：自動收掉監看（避免窗一直停在舊畫面）
   refreshSceneButtons();
+
+  // 內嵌監控牆：與名單同步（新台建格＋監看、離線台收格、ctl 未開的台稍後補看）
+  const connectedIds = session?.getConnectedStudentIds?.() ?? [];
+  monitorWall?.setStudents(connectedIds);
 
   // 狀態標籤：廣播狀態／鎖定／錯誤寫進各格（原學生卡片的 meta 資訊）
   const broadcasting = Boolean(localStream);
