@@ -890,8 +890,11 @@ async function connect(): Promise<void> {
   monitorWall = new MonitorWall(
     els.monitorWall,
     activeSession,
+    els.btnMonitorWall, // ← 新增：切換顯示/隱藏的按鈕
+    () => checkedPeers.size > 0 ? [...checkedPeers] : [], // getWatchTargets
     (peerId, name, blob) => void handleSnapshot(peerId, name, blob),
     (peerId, name) => takeControl(peerId, name),
+    (visible: boolean) => log('info', visible ? '監控牆已開啟' : '監控牆已關閉'), // onVisibilityChange
     (peerId, name) => toggleDemo(peerId, name)
   );
   monitorWall.syncStudents();
