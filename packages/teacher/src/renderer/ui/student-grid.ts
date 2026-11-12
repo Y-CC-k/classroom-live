@@ -1,5 +1,4 @@
 import { type TeacherSession } from '../webrtc/session.js';
-import { els } from './elements.js';
 
 /** 當前正在監看的學生機（一次一台；null = 沒有在監看） */
 export let watchingPeer: string | null = null;
@@ -39,8 +38,10 @@ export function closeMonitor(session: TeacherSession): void {
     URL.revokeObjectURL(monitorUrl);
     monitorUrl = null;
   }
-  els.monitorViewer.hidden = true;
-  els.monitorImg.src = '';
+  const mv = document.getElementById('monitorViewer');
+  if (mv) mv.hidden = true;
+  const mi = document.getElementById('monitorImg') as HTMLImageElement;
+  if (mi) mi.src = '';
 }
 
 /** 收到一幀監看畫面：只顯示還在監看的那台（不是的話直接丟掉） */
@@ -54,92 +55,103 @@ export function showMonitorFrame(
   }
   if (monitorUrl) URL.revokeObjectURL(monitorUrl);
   monitorUrl = frame.url;
-  els.monitorImg.src = frame.url;
-  // 不顯示張數及畫面大小
-  els.monitorMeta.textContent = '';
+  const mi = document.getElementById('monitorImg') as HTMLImageElement;
+  if (mi) mi.src = frame.url;
+  const mm = document.getElementById('monitorMeta');
+  if (mm) mm.textContent = '';
 }
 
 /** 開始監看勾選的那一台（單機功能列的「👁 監看」按鈕） */
 export function toggleWatchChecked(session: TeacherSession): void {
-  if (!session.isConnected) {
-    els.log.prepend(document.createTextNode('尚未連線；請先按「連線」再監看。'));
+  const isConn = session.isConnected;
+  const logEl = document.getElementById('log');
+  if (!isConn) {
+    if (logEl) logEl.prepend(document.createTextNode('尚未連線；請先按「連線」再監看。'));
     return;
   }
   if (checkedPeers.size !== 1) {
-    els.log.prepend(document.createTextNode(`監看一次一台：請只勾選一台（目前已勾 ${checkedPeers.size} 台）。`));
+    if (logEl) logEl.prepend(document.createTextNode(`監看一次一台：請只勾選一台（目前已勾 ${checkedPeers.size} 台）。`));
     return;
   }
   const peerId = [...checkedPeers][0]!;
   const student = session.students().find(item => item.info.id === peerId);
   if (!student) {
-    els.log.prepend(document.createTextNode('這台已經離線了。'));
+    if (logEl) logEl.prepend(document.createTextNode('這台已經離線了。'));
     return;
   }
   if (watchingPeer === peerId) {
     closeMonitor(session);
-    els.log.prepend(document.createTextNode('已停止監看。'));
+    if (logEl) logEl.prepend(document.createTextNode('已停止監看。'));
     renderStudents(session);
     return;
   }
   // 換台：先通知上一台停止，避免兩台同時送圖
   closeMonitor(session);
   if (!session.watchStudent(peerId, true, 3000)) {
-    els.log.prepend(document.createTextNode('監看送出失敗：控制通道還沒連上這台。'));
+    if (logEl) logEl.prepend(document.createTextNode('監看送出失敗：控制通道還沒連上這台。'));
     return;
   }
   watchingPeer = peerId;
-  els.monitorViewer.hidden = false;
-  els.monitorLabel.textContent = `監看中：${student.info.name}`;
-  // 不顯示張數及畫面大小
-  els.monitorMeta.textContent = '';
-  els.log.prepend(document.createTextNode(`已開始監看 ${student.info.name}（每 3 秒一張，關閉浮動窗即停止）。`));
+  const mv = document.getElementById('monitorViewer');
+  if (mv) mv.hidden = false;
+  const ml = document.getElementById('monitorLabel');
+  if (ml) ml.textContent = `監看中：${student.info.name}`;
+  const mm = document.getElementById('monitorMeta');
+  if (mm) mm.textContent = '';
+  if (logEl) logEl.prepend(document.createTextNode(`已開始監看 ${student.info.name}（每 3 秒一張，關閉浮動窗即停止）。`));
   renderStudents(session);
 }
 
 /** 勾選要進行「單機功能」的學生機（卡片勾選框；勾選名單獨立於廣播名單） */
 export function updateStudentBar(): void {
   const count = 0;
-  els.perStudentBar.hidden = true;
-  els.checkedCount.textContent = `已選 ${count} 台`;
+  const psb = document.getElementById('per-student-bar');
+  if (psb) psb.hidden = true;
+  const cc = document.getElementById('checked-count');
+  if (cc) cc.textContent = `已選 ${count} 台`;
 }
 
-function tag(text: string, className: string): HTMLSpanElement {
-  const span = document.createElement('span');
-  span.className = className;
-  span.textContent = text;
-  return span;
-}
-
-/** 渲染學生清單 */
+/** 把 RTCPeerConnection 的狀態翻成中文。 */
 export function renderStudents(session: TeacherSession): void {
   const students = session.students();
-  els.studentCount.textContent = String(students.length);
-  els.emptyStudents.hidden = students.length > 0;
+  const sc = document.getElementById('student-count');
+  if (sc) sc.textContent = String(students.length);
+  const es = document.getElementById('empty-students');
+  if (es) es.hidden = students.length > 0;
 
   // 直播狀態：有指定名單時表頭出現「回到全班」按鈕
   const targets = session.getBroadcastTargets();
+  const bt = document.getElementById('broadcast-target-label');
   if (targets) {
     const names =
       students
         .filter(student => targets.has(student.info.id))
         .map(student => student.info.name)
         .join('、') || `${targets.size} 台`;
-    els.broadcastTargetLabel.textContent = names.length > 30 ? `${names.slice(0, 30)}…` : names;
-    els.btnBroadcastAll.hidden = false;
+    if (bt) bt.textContent = names.length > 30 ? `${names.slice(0, 30)}…` : names;
+    const bba = document.getElementById('btn-broadcast-all');
+    if (bba) {
+      bba.hidden = false;
+    }
   } else {
-    els.btnBroadcastAll.hidden = true;
+    const bba = document.getElementById('btn-broadcast-all');
+    if (bba) bba.hidden = true;
   }
   // 台數多時提示畫質：延遲主要是教師機編碼負載，降畫質與硬體編碼是最有效的兩件事
-  els.scaleHint.hidden = students.length < 15;
+  const sh = document.getElementById('scale-hint');
+  if (sh) sh.hidden = students.length < 15;
   if (students.length >= 20) {
-    els.scaleHint.textContent =
+    if (sh) sh.textContent =
       '⚠ 已超過 19 台：建議把畫質降到「講課簡報（5fps）」或「每秒 2 張」，並開啟 H.264 硬體編碼，否則教師機編碼會塞車、畫面延遲會變大。';
   } else if (students.length >= 15) {
-    els.scaleHint.textContent = '⚠ 學生機已 15 台以上：若發現延遲變大，先降畫質或確認已開啟 H.264 硬體編碼。';
-  } else {
-    els.scaleHint.textContent = '';
+    if (sh) sh.textContent = '⚠ 學生機已 15 台以上：若發現延遲變大，先降畫質或確認已開啟 H.264 硬體編碼。';
+  } else if (sh) {
+    sh.textContent = '';
   }
-  els.studentGrid.replaceChildren();
+
+  // 清空格子重新渲染
+  const sg = document.getElementById('student-grid');
+  if (sg) sg.replaceChildren();
 
   // 勾選名單跟著現在一波清單修整：已下線的台自動移出勾選
   const peerIds = new Set(students.map(student => student.info.id));
@@ -152,7 +164,8 @@ export function renderStudents(session: TeacherSession): void {
   if (watchingPeer && !peerIds.has(watchingPeer)) {
     const name = students.find(item => item.info.id === watchingPeer)?.info.name ?? watchingPeer;
     closeMonitor(session);
-    els.log.prepend(document.createTextNode(`監看的學生機（${name}）已離線，監看窗已自動關閉。`));
+    const logEl = document.getElementById('log');
+    if (logEl) logEl.prepend(document.createTextNode(`監看的學生機（${name}）已離線，監看窗已自動關閉。`));
   }
   refreshSceneButtons(session);
 
@@ -200,14 +213,16 @@ export function renderStudents(session: TeacherSession): void {
           : '未廣播';
 
     const broadcastTagClass = videoArrived ? 'tag ok' : targets?.has(peerId) === false ? 'tag' : 'tag';
-    meta.append(tag(broadcastText, broadcastTagClass));
+    const bt = meta.appendChild(document.createElement('span'));
+    bt.className = broadcastTagClass;
+    bt.textContent = broadcastText;
     if (session.lockActive) meta.append(tag('已鎖定', 'tag err'));
     if (watchingPeer === peerId) meta.append(tag('👁 正在監看', 'tag ok'));
     if (student.lastError) meta.append(tag(`錯誤：${student.lastError}`, 'tag err'));
 
     card.append(pickLine, meta);
     if (pick.checked) card.classList.add('checked');
-    els.studentGrid.append(card);
+    if (sg) sg.append(card);
   }
 }
 
@@ -215,8 +230,22 @@ export function renderStudents(session: TeacherSession): void {
 export function refreshSceneButtons(session: TeacherSession): void {
   const teaching = Boolean(session.getLocalStream()) && Boolean(session.lockActive) && Boolean(session.muteActive);
   const learning = !session.getLocalStream() && !session.lockActive && !session.muteActive;
-  els.btnSceneTeach.classList.toggle('primary', teaching);
-  els.btnSceneTeach.classList.toggle('ghost', !teaching);
-  els.btnSceneLearn.classList.toggle('primary', learning);
-  els.btnSceneLearn.classList.toggle('ghost', !learning);
+  const bt1 = document.getElementById('btn-scene-teach');
+  const bt2 = document.getElementById('btn-scene-learn');
+  if (bt1) {
+    bt1.classList.toggle('primary', teaching);
+    bt1.classList.toggle('ghost', !teaching);
+  }
+  if (bt2) {
+    bt2.classList.toggle('primary', learning);
+    bt2.classList.toggle('ghost', !learning);
+  }
+}
+
+/** 建立一個 <span> 標籤 */
+function tag(text: string, className: string): HTMLSpanElement {
+  const span = document.createElement('span');
+  span.className = className;
+  span.textContent = text;
+  return span;
 }
